@@ -1019,7 +1019,7 @@ bot.on("callback_query", async msg => {
 
 function getUserDB(user) {
 
-    const userDir = `./${users[user].id}`;
+    const userDir = `./users/${users[user].id}`;
 
     // Перевіряємо, чи існує папка для користувача
     if (!fs.existsSync(userDir)) {
@@ -1029,7 +1029,7 @@ function getUserDB(user) {
     }
 
     if (!dbConnections[user]) {
-        const userDir = path.join(__dirname, 'users', callbackUser);
+        const userDir = path.join(__dirname, 'users', `${user}`);
 
         if (!fs.existsSync(userDir)) {
             fs.mkdirSync(userDir, { recursive: true });
