@@ -1,31 +1,21 @@
+require('dotenv').config();
 const TelegramApi = require('node-telegram-bot-api');
-const token = "7576087739:AAHa7sMj1dW-ARevL0i21gyvGtNbTxk3oag";
-//const { resolve } = require('path');
 const path = require("path");
 const { brotliCompress } = require('zlib');
 const fs = require('fs');
 const https = require('https');
-//const { use } = require('react');
 const sqlite3 = require('sqlite3').verbose();
 
+const token = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramApi(token, { polling: true });
-let chatId = 335479874;
-const admin = 335479874;
-let channelId = "-1002444646412";
+const adminID = process.env.ADMIN_ID;
+let chatId = adminID;
+//let channelId = ""; chanel to be subscribed
 
 let users = {};
-//let currentUser;
 let dbConnections = {};
-const dbUsers = new sqlite3.Database('./dbUsers.sqlite');
+const dbUsers = new sqlite3.Database('./dbUsers.sqlite'); //base to store users info
 let botUsers = {};
-
-const adminInfo = {
-    id: 335479874,
-    username: 'yura_kas',
-    first_name: 'Юра',
-    last_name: 'Касянчик',
-    access: true
-};
 
 dbUsers.run(`
   CREATE TABLE IF NOT EXISTS users (
@@ -156,11 +146,11 @@ bot.on("message", async msg => {
         await bot.sendMessage(id, '🔒 Ви подали заявку на доступ. Очікуйте підтвердження.');
 
         const text = `🔔 Нова заявка:\n👤 ${first_name} (@${username})\nID: ${id}`;
-        await bot.sendMessage(admin, text, {
+        await bot.sendMessage(adminID, text, {
             reply_markup: {
                 inline_keyboard: [[
-                    { text: '✅ Прийняти', callback_data: `accept_${id}` },
-                    { text: '❌ Відхилити', callback_data: `deny_${id}` }
+                    { text: '✅ Прийняти', callback_data: `accept/${id}/${username}` },
+                    { text: '❌ Відхилити', callback_data: `deny/${id}/${username}` }
                 ]]
             }
         });
@@ -246,8 +236,8 @@ bot.on("message", async msg => {
 
 
         if (text === "/admin") {
-            if (user != admin) return
-            bot.sendMessage(admin, "Ти адмін")
+            if (user != adminID) return
+            bot.sendMessage(adminID, "Ти адмін")
         }
 
         if (text === "/start") {
@@ -524,27 +514,47 @@ bot.on("callback_query", async msg => {
     let userName = msg.from.username;
     const action = msg.data;
 
-    if (action.startsWith('accept_')) {
-        const userId = action.split('_')[1];
+    if (action.startsWith('accept/')) {
+        const userId = action.split('/')[1];
+        const username = action.split('/')[2];
         if (botUsers[userId]) {
             botUsers[userId].access = true;
             dbUsers.run('UPDATE users SET access = 1 WHERE id = ?', [userId]);
             await bot.sendMessage(userId, '✅ Вам надано доступ. Вітаємо!');
-            await bot.sendMessage(admin, `Користувачу ${userId} надано доступ.`);
+            await bot.sendMessage(adminID, `Користувачу @${username} надано доступ.`);
+
+            await bot.sendMessage(userId, "Привіт.\nТут ти можеш створювати уроки та зберігати а потім повторювати англійські слова і вирази\n\nНижче коротка відеоінструкція як користуватись ботом");
+
+            const videoPath = path.resolve(__dirname, "instruction.mp4"); // Отримуємо абсолютний шлях
+
+            try {
+                await bot.sendVideo(userId, fs.createReadStream(videoPath), {
+                    width: 1280, // Ширина (16:9)
+                    height: 720, // Висота (16:9)
+                    supports_streaming: true, // Відео не програватиметься автоматично
+                });
+            } catch (error) {
+                console.error("Помилка при відправці відео:", error);
+            }
+
+            await bot.sendMessage(userId, "----------------\nЩоб створити перший урок зі словами обери 'стоврити урок' в меню бота і слійдуй інструкціям\n----------------")
+            return
+
         } else {
-            await bot.sendMessage(admin, '⚠️ Користувач не знайдений.');
+            await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
         }
     }
 
-    if (action.startsWith('deny_')) {
-        const userId = action.split('_')[1];
+    if (action.startsWith('deny/')) {
+        const userId = action.split('/')[1];
+        const username = action.split('/')[2];
         if (botUsers[userId]) {
             delete botUsers[userId];
-            dbUsers.run('DELETE FROM users WHERE id = ?', [userId]);
+            //dbUsers.run('DELETE FROM users WHERE id = ?', [userId]);
             await bot.sendMessage(userId, '❌ Ваш запит на доступ було відхилено.');
-            await bot.sendMessage(admin, `Запит користувача ${userId} відхилено та видалено.`);
+            await bot.sendMessage(adminID, `Запит користувача @${username} відхилено.`);
         } else {
-            await bot.sendMessage(admin, '⚠️ Користувач не знайдений.');
+            await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
         }
     }
 
