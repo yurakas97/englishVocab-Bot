@@ -1,7 +1,7 @@
 require('dotenv').config();
 const TelegramApi = require('node-telegram-bot-api');
 const path = require("path");
-const { brotliCompress } = require('zlib');
+//const { brotliCompress } = require('zlib');
 const fs = require('fs');
 const https = require('https');
 const sqlite3 = require('sqlite3').verbose();
@@ -16,6 +16,90 @@ let users = {};
 let dbConnections = {};
 const dbUsers = new sqlite3.Database('./dbUsers.sqlite'); //base to store users info
 let botUsers = {};
+let adminActionsMsg = [];
+let adminMessages = [];
+let usersToBeNotified = [];
+let textToSend = "";
+
+const buttons = {
+    actionNextWord: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "⏭ Наступне", callback_data: "nextWord" }, { text: "☑️ Ні, зберегти урок", callback_data: "saveLesson" }],
+                [{ text: "✒️ Редагувати", callback_data: "edit" }],
+                [{ text: "🔊 Додати/замінити аудіо", callback_data: "addAudio" }],
+                [{ text: "🔠 Додати приклади/підказки", callback_data: "addExamples" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    finishConfirm: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "  ГОТОВО!", callback_data: "done" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    deleteConfirm: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "  Так!", callback_data: "yesdelete" }, { text: "  НІ!", callback_data: "nodelete" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    showingReply: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "OK", callback_data: "ok" }, { text: "Видалити Урок", callback_data: "delete" }],
+                [{ text: "Повторити Урок", callback_data: "repeat" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    chooseLenguage: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "🇺🇦 УКР", callback_data: "learnFromUkr" }, { text: "🇺🇸 ENG", callback_data: "learnFromEng" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    helpButton: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "Переклад", callback_data: "help" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    finishButton: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "Завершити", callback_data: "finish" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    deleteMessage: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "OK", callback_data: "deleteMessage" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+    confirmSend: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "Так", callback_data: "yesSend" }],
+                [{ text: "Ні", callback_data: "deleteMessage" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    }
+};
 
 dbUsers.run(`
   CREATE TABLE IF NOT EXISTS users (
@@ -52,73 +136,6 @@ bot.setMyCommands([
     { command: "/stop", description: 'Зупинити' },
     { command: "/start", description: 'Запустити' }
 ]);
-
-const actionNextWord = {
-    reply_markup: JSON.stringify({
-        inline_keyboard: [
-            [{ text: "⏭ Наступне", callback_data: "nextWord" }, { text: "☑️ Ні, зберегти урок", callback_data: "saveLesson" }],
-            [{ text: "✒️ Редагувати", callback_data: "edit" }],
-            [{ text: "🔊 Додати/замінити аудіо", callback_data: "addAudio" }],
-            [{ text: "🔠 Додати приклади/підказки", callback_data: "addExamples" }],
-        ]
-    }),
-    parse_mode: 'HTML'
-};
-
-const finishConfirm = {
-    reply_markup: JSON.stringify({
-        inline_keyboard: [
-            [{ text: "  ГОТОВО!", callback_data: "done" }],
-        ]
-    }),
-    parse_mode: 'HTML'
-};
-
-const deleteConfirm = {
-    reply_markup: JSON.stringify({
-        inline_keyboard: [
-            [{ text: "  Так!", callback_data: "yesdelete" }, { text: "  НІ!", callback_data: "nodelete" }],
-        ]
-    }),
-    parse_mode: 'HTML'
-};
-
-const showingReply = {
-    reply_markup: JSON.stringify({
-        inline_keyboard: [
-            [{ text: "OK", callback_data: "ok" }, { text: "Видалити Урок", callback_data: "delete" }],
-            [{ text: "Повторити Урок", callback_data: "repeat" }],
-        ]
-    }),
-    parse_mode: 'HTML'
-};
-
-const chooseLenguage = {
-    reply_markup: JSON.stringify({
-        inline_keyboard: [
-            [{ text: "🇺🇦 УКР", callback_data: "learnFromUkr" }, { text: "🇺🇸 ENG", callback_data: "learnFromEng" }],
-        ]
-    }),
-    parse_mode: 'HTML'
-};
-
-let helpButton = {
-    reply_markup: JSON.stringify({
-        inline_keyboard: [
-            [{ text: "Переклад", callback_data: "help" }],
-        ]
-    }),
-    parse_mode: 'HTML'
-};
-
-const finishButton = {
-    reply_markup: JSON.stringify({
-        inline_keyboard: [
-            [{ text: "Завершити", callback_data: "finish" }],
-        ]
-    }),
-    parse_mode: 'HTML'
-};
 
 bot.sendMessage(chatId, "<b>Public bot started</b>\n------------------\n", { parse_mode: "HTML" });
 
@@ -237,27 +254,24 @@ bot.on("message", async msg => {
 
         if (text === "/admin") {
             if (user != adminID) return
-            bot.sendMessage(adminID, "Ти адмін")
+
+            let adminMessage = (await bot.sendMessage(adminID, "Доступні дії:", {
+                reply_markup: {
+                    inline_keyboard: [
+                        [{ text: '📝 Всі користувачі', callback_data: 'all_users' }],
+                        [{ text: '✅ З доступом', callback_data: 'allowed' }],
+                        [{ text: '❌ Без доступу', callback_data: 'denied' }],
+                        [{ text: '📢 Розсилка', callback_data: 'broadcast' }],
+                        [{ text: 'Закрити', callback_data: 'closeAdmin' }]
+                    ]
+                }
+            })).message_id;
+            adminMessages.push(messageIdMain, adminMessage);
         }
 
         if (text === "/start") {
             users[user].messagesToDelete.push(messageIdMain);
-            await bot.sendMessage(chatId, "Привіт.\nТут ти можеш створювати уроки та зберігати а потім повторювати англійські слова і вирази\n\nНижче коротка відеоінструкція як користуватись ботом");
-
-            const videoPath = path.resolve(__dirname, "instruction.mp4"); // Отримуємо абсолютний шлях
-
-            try {
-                await bot.sendVideo(chatId, fs.createReadStream(videoPath), {
-                    width: 1280, // Ширина (16:9)
-                    height: 720, // Висота (16:9)
-                    supports_streaming: true, // Відео не програватиметься автоматично
-                });
-            } catch (error) {
-                console.error("Помилка при відправці відео:", error);
-            }
-
-            await bot.sendMessage(chatId, "----------------\nЩоб створити перший урок зі словами обери 'стоврити урок' в меню бота і слійдуй інструкціям\n----------------")
-            return
+            await greeting(chatId);
         }
 
         //db = new sqlite3.Database(`./${users[user]}/vocab_bot.db`);
@@ -350,7 +364,7 @@ bot.on("message", async msg => {
             bot.deleteMessage(chatId, users[user].startInputWords)
             bot.deleteMessage(chatId, users[user].engWordId)
             bot.deleteMessage(chatId, users[user].ukrWordId)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, actionNextWord)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             users[user].messagesToDelete.push(messageIdMain);
             return
@@ -373,7 +387,7 @@ bot.on("message", async msg => {
             await new Promise(resolve => setTimeout(resolve, 1000));
             bot.deleteMessage(chatId, users[user].lessonNameId)
             bot.deleteMessage(chatId, users[user].lessonNameMessage)
-            users[user].startInputWords = (await bot.sendMessage(chatId, "Тепер додавай слова,\n спочатку відправ АНГ, а потім окремо УКР")).message_id;
+            users[user].startInputWords = (await bot.sendMessage(chatId, "Тепер додавай слова,\nСпочатку відправ АНГ слово,\nА потім окремо УКР")).message_id;
             users[user].messagesToDelete.push(users[user].startInputWords);
             users[user].context.ENGwords = true;
             users[user].messagesToDelete.push(messageIdMain);
@@ -391,7 +405,7 @@ bot.on("message", async msg => {
 
         if (text === "/show") {
             await bot.deleteMessage(chatId, msg.message_id)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, await getLessons(currentUser), showingReply)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, await getLessons(currentUser), buttons.showingReply)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             //console.log("list:", await getLessons())
             users[user].messagesToDelete.push(messageIdMain);
@@ -411,7 +425,7 @@ bot.on("message", async msg => {
             console.log("chosen lesson: ", users[user].chosenLesson)
 
             await bot.deleteMessage(chatId, msg.message_id)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `Якою мовою показувати слова?`, chooseLenguage)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, `Якою мовою показувати слова?`, buttons.chooseLenguage)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             //mix
 
@@ -429,7 +443,7 @@ bot.on("message", async msg => {
             await bot.deleteMessage(chatId, users[user].messageIdReply)
             //console.log(lessonsToRepeat)
 
-            let sure = (await bot.sendMessage(chatId, `Я видаляю: <b>${users[user].lessonsArr[lessonsToDelete]}</b>\nВірно?`, deleteConfirm)).message_id
+            let sure = (await bot.sendMessage(chatId, `Я видаляю: <b>${users[user].lessonsArr[lessonsToDelete]}</b>\nВірно?`, buttons.deleteConfirm)).message_id
 
             await new Promise((resolve) => {
                 bot.once("callback_query", async (msg) => {
@@ -460,7 +474,7 @@ bot.on("message", async msg => {
             await bot.deleteMessage(chatId, users[user].messageIdReply)
             bot.deleteMessage(chatId, users[user].inputAgainId)
             users[user].wordEng = text;
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, actionNextWord)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             users[user].messagesToDelete.push(messageIdMain);
             return
@@ -472,7 +486,7 @@ bot.on("message", async msg => {
             await bot.deleteMessage(chatId, users[user].messageIdReply)
             bot.deleteMessage(chatId, users[user].inputAgainId)
             users[user].wordUkr = text;
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, actionNextWord)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             users[user].messagesToDelete.push(messageIdMain);
             return
@@ -484,7 +498,7 @@ bot.on("message", async msg => {
             //console.log(msg)
             users[user].voiceFileId = msg.voice.file_id;
             await bot.deleteMessage(chatId, users[user].audioMessageId)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, actionNextWord)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             users[user].messagesToDelete.push(messageIdMain);
             return
@@ -496,7 +510,7 @@ bot.on("message", async msg => {
             await bot.deleteMessage(chatId, users[user].exampleMessageId)
             users[user].exampleText += `${text}\n`;
             await bot.deleteMessage(chatId, msg.message_id);
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, actionNextWord)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             users[user].messagesToDelete.push(messageIdMain);
             return
@@ -521,25 +535,8 @@ bot.on("callback_query", async msg => {
             botUsers[userId].access = true;
             dbUsers.run('UPDATE users SET access = 1 WHERE id = ?', [userId]);
             await bot.sendMessage(userId, '✅ Вам надано доступ. Вітаємо!');
-            await bot.sendMessage(adminID, `Користувачу @${username} надано доступ.`);
-
-            await bot.sendMessage(userId, "Привіт.\nТут ти можеш створювати уроки та зберігати а потім повторювати англійські слова і вирази\n\nНижче коротка відеоінструкція як користуватись ботом");
-
-            const videoPath = path.resolve(__dirname, "instruction.mp4"); // Отримуємо абсолютний шлях
-
-            try {
-                await bot.sendVideo(userId, fs.createReadStream(videoPath), {
-                    width: 1280, // Ширина (16:9)
-                    height: 720, // Висота (16:9)
-                    supports_streaming: true, // Відео не програватиметься автоматично
-                });
-            } catch (error) {
-                console.error("Помилка при відправці відео:", error);
-            }
-
-            await bot.sendMessage(userId, "----------------\nЩоб створити перший урок зі словами обери 'стоврити урок' в меню бота і слійдуй інструкціям\n----------------")
-            return
-
+            await bot.sendMessage(adminID, `🔗 Користувачу @${username} надано доступ.`);
+            await greeting(userId);
         } else {
             await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
         }
@@ -552,7 +549,7 @@ bot.on("callback_query", async msg => {
             delete botUsers[userId];
             //dbUsers.run('DELETE FROM users WHERE id = ?', [userId]);
             await bot.sendMessage(userId, '❌ Ваш запит на доступ було відхилено.');
-            await bot.sendMessage(adminID, `Запит користувача @${username} відхилено.`);
+            await bot.sendMessage(adminID, `🔗 Запит користувача @${username} відхилено.`);
         } else {
             await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
         }
@@ -651,7 +648,7 @@ bot.on("callback_query", async msg => {
             lessonText += `\n${key} - ${users[callbackUser].lessonCore[key]["translate"]}`
         }
 
-        users[callbackUser].messageIdReply = (await bot.sendMessage(chatId, lessonText, finishConfirm)).message_id;
+        users[callbackUser].messageIdReply = (await bot.sendMessage(chatId, lessonText, buttons.finishConfirm)).message_id;
         users[callbackUser].messagesToDelete.push(users[callbackUser].messageIdReply);
         fs.writeFileSync(`./users/${callbackUser}/txt/${users[callbackUser].lessonName}.txt`, lessonText, 'utf8');            // change to currentUser
         console.log('Файл записано!');
@@ -756,7 +753,6 @@ bot.on("callback_query", async msg => {
     if (msg.data === "help") {
         users[callbackUser].promptId = (await bot.sendMessage(chatId, `💬 ${users[callbackUser].currentWord[0]} - ${users[callbackUser].currentWord[1]["translate"]}`)).message_id;
         users[callbackUser].messagesToDelete.push(users[callbackUser].promptId);
-        //console.log(promptId)
     }
 
     if (msg.data === "helpExample") {
@@ -771,19 +767,15 @@ bot.on("callback_query", async msg => {
         let indexAnswer;
         let audio;
         let example;
-        //let indexAnswer2;
-        //let indexQuestion2;
 
         if (msg.data === "learnFromUkr") {
             indexQuestion = 1;
             indexAnswer = 0;
-            //indexQuestion2 = 0;
         }
 
         if (msg.data === "learnFromEng") {
             indexQuestion = 0;
             indexAnswer = 1;
-            //indexAnswer2 = 0;
         }
 
         async function runQuiz() {
@@ -816,7 +808,7 @@ bot.on("callback_query", async msg => {
 
                 if (users[callbackUser].context.help) {
                     if (example) {
-                        helpButton = {
+                        buttons.helpButton = {
                             reply_markup: JSON.stringify({
                                 inline_keyboard: [
                                     [{ text: "Переклад", callback_data: "help" }],
@@ -826,7 +818,7 @@ bot.on("callback_query", async msg => {
                             parse_mode: 'HTML'
                         };
                     } else {
-                        helpButton = {
+                        buttons.helpButton = {
                             reply_markup: JSON.stringify({
                                 inline_keyboard: [
                                     [{ text: "Переклад", callback_data: "help" }],
@@ -836,7 +828,7 @@ bot.on("callback_query", async msg => {
                         };
                     }
 
-                    users[callbackUser].questionId = (await bot.sendMessage(chatId, `- ${question} ❓`, helpButton)).message_id;
+                    users[callbackUser].questionId = (await bot.sendMessage(chatId, `- ${question} ❓`, buttons.helpButton)).message_id;
                     users[callbackUser].messagesToDelete.push(users[callbackUser].questionId);
                 } else {
                     users[callbackUser].questionId3 = (await bot.sendMessage(chatId, `- ${question} ❓`)).message_id;
@@ -850,12 +842,9 @@ bot.on("callback_query", async msg => {
                         let text = msg.text;
                         let messageId = msg.message_id;
                         users[callbackUser].currentWord = users[callbackUser].mixedWords[i];
-                        //console.log("recieved:", msg.text)
-
-                        //if (msg.data) console.log(msg.data)
 
                         if (areStringsSimilar(text.toLowerCase(), answer.toLowerCase())) {
-                            //if (text.toLowerCase() === answer.toLowerCase()) {
+
                             users[callbackUser].context.help = false;
                             let rightAnswer = (await bot.sendMessage(chatId, `🟢 Правильно: <b>${question} - ${answer}</b>`, { parse_mode: "HTML" })).message_id;
                             await new Promise(resolve => setTimeout(resolve, 100));
@@ -973,7 +962,7 @@ bot.on("callback_query", async msg => {
         }
 
         await runQuiz()
-        let finishText = (await bot.sendMessage(chatId, "Вітаю! Ви пройшли всі слова.", finishButton)).message_id;
+        let finishText = (await bot.sendMessage(chatId, "Вітаю! Ви пройшли всі слова.", buttons.finishButton)).message_id;
         users[callbackUser].messagesToDelete.push(finishText);
         users[callbackUser].rightAnswerId.push(finishText);
         return
@@ -1025,7 +1014,193 @@ bot.on("callback_query", async msg => {
         users[callbackUser].messagesToDelete.push(users[callbackUser].exampleMessageId);
     }
 
+    if (msg.data === "all_users") {
+        let text = '👥 Усі користувачі:\n';
+
+        for (const [key, value] of Object.entries(botUsers)) {
+            text += `🆔 ${key} | @${value.username || '---'} | ${value.access ? '✅' : '❌'}\n`;
+        }
+        let message = (await bot.sendMessage(adminID, text || 'Немає користувачів.', buttons.deleteMessage)).message_id;
+        adminActionsMsg.push(message);
+        return
+    }
+
+    if (msg.data === "allowed") {
+        let text = '👥 Активні користувачі:\n';
+
+        for (const [key, value] of Object.entries(botUsers)) {
+            if (value.access) {
+                text += `🆔 ${key} | @${value.username || '---'} | ✅\n`;
+            }
+        }
+        let message = (await bot.sendMessage(adminID, text || 'Немає користувачів.', buttons.deleteMessage)).message_id;
+        adminActionsMsg.push(message);
+        return
+    }
+
+    if (msg.data === "denied") {
+        let text = '👥 Не активні користувачі:\n';
+
+        for (const [key, value] of Object.entries(botUsers)) {
+            if (!value.access) {
+                text += `🆔 ${key} | @${value.username || '---'} | ❌\n`;
+            }
+        }
+        let message = (await bot.sendMessage(adminID, text || 'Немає користувачів.', buttons.deleteMessage)).message_id;
+        adminActionsMsg.push(message);
+        return
+    }
+
+    if (msg.data === "yesSend") {
+
+        usersToBeNotified.forEach(user => {
+            bot.sendMessage(user, textToSend)
+        })
+
+        adminActionsMsg.forEach(msgId => {
+            try {
+                bot.deleteMessage(adminID, msgId);
+            } catch (e) {
+                console.log(e)
+            }
+        })
+        adminActionsMsg = [];
+        usersToBeNotified = [];
+        return
+    }
+
+    if (msg.data === "broadcast") {
+        let message = (await bot.sendMessage(adminID, "Кому?", {
+            reply_markup: JSON.stringify({
+                inline_keyboard: [
+                    [{ text: "З доступом", callback_data: "sendToWithAccess" }],
+                    [{ text: "Без доступа", callback_data: "sendToWithoutAccess" }],
+                    [{ text: "Всім", callback_data: "sendToAll" }],
+                    [{ text: "Скасувати", callback_data: "deleteMessage" }],
+                ]
+            }),
+            parse_mode: 'HTML'
+        })).message_id;
+        adminActionsMsg.push(message);
+        return
+    }
+
+    if (msg.data === "sendToWithAccess") {
+        let shortMessage = (await bot.sendMessage(adminID, "Текст повідомлення")).message_id;
+
+        await new Promise((resolve) => {
+            bot.once("message", async (msg) => {
+                bot.deleteMessage(adminID, shortMessage)
+                textToSend = msg.text;
+                bot.deleteMessage(adminID, msg.message_id)
+
+                let message = (await bot.sendMessage(adminID, `Відправити цей текст усім активним користувачам?\n - ${textToSend}`, buttons.confirmSend)).message_id;
+                adminActionsMsg.push(message)
+
+                for (const [key, value] of Object.entries(botUsers)) {
+                    if (value.access) {
+                        usersToBeNotified.push(key)
+                    }
+                }
+
+                resolve()
+            })
+        })
+        return
+    }
+
+    if (msg.data === "sendToWithoutAccess") {
+        let shortMessage = (await bot.sendMessage(adminID, "Текст повідомлення")).message_id;
+
+        await new Promise((resolve) => {
+            bot.once("message", async (msg) => {
+                bot.deleteMessage(adminID, shortMessage)
+                textToSend = msg.text;
+                bot.deleteMessage(adminID, msg.message_id)
+
+                let message = (await bot.sendMessage(adminID, `Відправити цей текст усім неактивним користувачам?\n - ${textToSend}`, buttons.confirmSend)).message_id;
+                adminActionsMsg.push(message)
+
+                for (const [key, value] of Object.entries(botUsers)) {
+                    if (!value.access) {
+                        usersToBeNotified.push(key)
+                    }
+                }
+                resolve()
+            })
+        })
+        return
+    }
+
+    if (msg.data === "sendToAll") {
+        let shortMessage = (await bot.sendMessage(adminID, "Текст повідомлення")).message_id;
+
+        await new Promise((resolve) => {
+            bot.once("message", async (msg) => {
+                bot.deleteMessage(adminID, shortMessage)
+                textToSend = msg.text;
+                bot.deleteMessage(adminID, msg.message_id)
+
+                let message = (await bot.sendMessage(adminID, `Відправити цей текст усім користувачам?\n - ${textToSend}`, buttons.confirmSend)).message_id;
+                adminActionsMsg.push(message)
+
+                for (const [key, value] of Object.entries(botUsers)) {
+                    usersToBeNotified.push(key)
+                }
+
+                resolve()
+            })
+        })
+        return
+    }
+
+    if (msg.data === "deleteMessage") {
+        adminActionsMsg.forEach(msgId => {
+            try {
+                bot.deleteMessage(adminID, msgId);
+            } catch (e) {
+                console.log(e)
+            }
+        })
+        adminActionsMsg = [];
+        usersToBeNotified = [];
+        return
+    }
+
+    if (msg.data === "closeAdmin") {
+        adminMessages.forEach(msgId => {
+            try {
+                bot.deleteMessage(adminID, msgId);
+            } catch (e) {
+                console.log(e)
+            }
+        })
+        adminMessages = [];
+        return
+    }
+
+
 });
+
+
+async function greeting(chatId) {
+    await bot.sendMessage(chatId, "Привіт.\nТут ти можеш створювати уроки та зберігати а потім повторювати англійські слова і вирази\n\nНижче коротка відеоінструкція як користуватись ботом");
+
+    const videoPath = path.resolve(__dirname, "instruction.mp4"); // Отримуємо абсолютний шлях
+
+    try {
+        await bot.sendVideo(chatId, fs.createReadStream(videoPath), {
+            width: 1280, // Ширина (16:9)
+            height: 720, // Висота (16:9)
+            supports_streaming: true, // Відео не програватиметься автоматично
+        });
+    } catch (error) {
+        console.error("Помилка при відправці відео:", error);
+    }
+
+    await bot.sendMessage(chatId, "----------------\nЩоб створити перший урок зі словами обери 'Створити урок' в меню бота і слійдуй інструкціям\n----------------")
+    return
+}
 
 function getUserDB(user) {
 
