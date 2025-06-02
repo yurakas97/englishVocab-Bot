@@ -1,6 +1,7 @@
 require('dotenv').config();
 const TelegramApi = require('node-telegram-bot-api');
 const path = require("path");
+//const { brotliCompress } = require('zlib');
 const fs = require('fs');
 const https = require('https');
 const sqlite3 = require('sqlite3').verbose();
@@ -19,7 +20,6 @@ let adminActionsMsg = [];
 let adminMessages = [];
 let usersToBeNotified = [];
 let textToSend = "";
-let requestId = [];
 
 const buttons = {
     actionNextWord: {
@@ -149,27 +149,30 @@ bot.on("message", async msg => {
     //let isSubscribed;
     let hasAccess;
     let userInfo = botUsers[id];
-
     if (userInfo) {
         hasAccess = userInfo.access;
-        if (!hasAccess) {
-            botUsers[id] = { username, first_name, last_name, access: false };
-            dbUsers.run('INSERT OR IGNORE INTO users (id, username, first_name, last_name, access) VALUES (?, ?, ?, ?, ?)',
-                [id, username, first_name, last_name, 0]);
-            await bot.sendMessage(id, '🔒 Ви подали заявку на доступ. Очікуйте підтвердження.');
-
-            const text = `🔔 Нова заявка:\n👤 ${first_name} (@${username})\nID: ${id}`;
-            await bot.sendMessage(adminID, text, {
-                reply_markup: {
-                    inline_keyboard: [[
-                        { text: '✅ Прийняти', callback_data: `accept/${id}/${username}` },
-                        { text: '❌ Відхилити', callback_data: `deny/${id}/${username}` }
-                    ]]
-                }
-            });
-            return
-        }
+    } else {
+        hasAccess = false;
     }
+
+    if (!hasAccess) {
+        botUsers[id] = { username, first_name, last_name, access: false };
+        dbUsers.run('INSERT OR IGNORE INTO users (id, username, first_name, last_name, access) VALUES (?, ?, ?, ?, ?)',
+            [id, username, first_name, last_name, 0]);
+        await bot.sendMessage(id, '🔒 Ви подали заявку на доступ. Очікуйте підтвердження.');
+
+        const text = `🔔 Нова заявка:\n👤 ${first_name} (@${username})\nID: ${id}`;
+        await bot.sendMessage(adminID, text, {
+            reply_markup: {
+                inline_keyboard: [[
+                    { text: '✅ Прийняти', callback_data: `accept/${id}/${username}` },
+                    { text: '❌ Відхилити', callback_data: `deny/${id}/${username}` }
+                ]]
+            }
+        });
+        return
+    }
+
 
     // if (isSubscribed === undefined) {
     //     isSubscribed = await checkSubscription(user);
@@ -242,8 +245,8 @@ bot.on("message", async msg => {
     if (users[user].exist) {
         //console.log(users[user])
 
-        let currentUserId = users[user].id;
-        console.log(`user entered: ${currentUserId}`);
+        let currentUser = users[user].id;
+        console.log(`user entered: ${currentUser}`);
         let chatId = user;
         users[user].messageId = msg.message_id;
         users[user].lastActionTime = Date.now();
@@ -272,10 +275,10 @@ bot.on("message", async msg => {
         }
 
         //db = new sqlite3.Database(`./${users[user]}/vocab_bot.db`);
-        await getUserDB(currentUserId);
+        await getUserDB(currentUser);
 
-        await getUserDB(currentUserId).serialize(() => {
-            getUserDB(currentUserId).run(`
+        await getUserDB(currentUser).serialize(() => {
+            getUserDB(currentUser).run(`
               CREATE TABLE IF NOT EXISTS lessons (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -402,7 +405,7 @@ bot.on("message", async msg => {
 
         if (text === "/show") {
             await bot.deleteMessage(chatId, msg.message_id)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, await getLessons(currentUserId), buttons.showingReply)).message_id;
+            users[user].messageIdReply = (await bot.sendMessage(chatId, await getLessons(currentUser), buttons.showingReply)).message_id;
             users[user].messagesToDelete.push(users[user].messageIdReply);
             //console.log("list:", await getLessons())
             users[user].messagesToDelete.push(messageIdMain);
@@ -415,7 +418,7 @@ bot.on("message", async msg => {
             bot.deleteMessage(chatId, users[user].messageRepeadId)
             bot.deleteMessage(chatId, users[user].messageIdReply)
 
-            getLesson(users[user].lessonsArr[lessonsToRepeat], currentUserId, (words) => {
+            getLesson(users[user].lessonsArr[lessonsToRepeat], currentUser, (words) => {
                 console.log("Words in lesson:", words);
                 users[user].chosenLesson = Object.entries(words);
             });
@@ -448,7 +451,7 @@ bot.on("message", async msg => {
                     //let messageId = msg.message_id;
 
                     if (data === "yesdelete") {
-                        deleteLessonByName(users[user].lessonsArr[lessonsToDelete], currentUserId)
+                        deleteLessonByName(users[user].lessonsArr[lessonsToDelete], currentUser)
                     }
 
                     resolve()
@@ -1234,9 +1237,9 @@ function saveLesson(name, wordsObject, callbackUser) {
     });
 }
 
-function getLesson(name, currentUserId, callback) {
+function getLesson(name, currentUser, callback) {
     const query = `SELECT words FROM lessons WHERE name = ?`;
-    getUserDB(currentUserId).get(query, [name], (err, row) => {
+    getUserDB(currentUser).get(query, [name], (err, row) => {
         if (err) {
             return console.error(err.message);
         }
@@ -1249,22 +1252,22 @@ function getLesson(name, currentUserId, callback) {
     });
 }
 
-function getLessons(currentUserId) {
+function getLessons(currentUser) {
     return new Promise((resolve, reject) => {
         let lessonsList = "";
 
-        getUserDB(currentUserId).all("SELECT name FROM lessons", [], (err, rows) => {
+        getUserDB(currentUser).all("SELECT name FROM lessons", [], (err, rows) => {
             if (err) {
                 console.error("Error retrieving lessons:", err.message);
                 reject(err); // Відхиляє Promise у випадку помилки
                 return;
             }
-            users[currentUserId].lessonsArr = [0];
+            users[currentUser].lessonsArr = [0];
             let counter = 1;
             console.log(`Кількість уроків: ${rows.length}`);
             rows.forEach((row) => {
                 lessonsList += `\n🔗  ${counter++}_${row.name}`; // Додаємо кожен урок до рядка
-                users[currentUserId].lessonsArr.push(row.name);
+                users[currentUser].lessonsArr.push(row.name);
             });
 
             lessonsList = lessonsList || "Ще немає уроків";
@@ -1313,9 +1316,9 @@ async function saveVoice(fileId, callbackUser) {
 
 }
 
-function deleteLessonByName(name, currentUserId) {
+function deleteLessonByName(name, currentUser) {
     const query = `DELETE FROM lessons WHERE name = ?`;
-    getUserDB(currentUserId).run(query, [name], function (err) {
+    getUserDB(currentUser).run(query, [name], function (err) {
         if (err) {
             return console.error("Error deleting lesson:", err.message);
         }
