@@ -99,6 +99,7 @@ const buttons = {
         parse_mode: 'HTML'
     }
 };
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 dbUsers.run(`
   CREATE TABLE IF NOT EXISTS users (
@@ -361,13 +362,15 @@ bot.on("message", async msg => {
             thisUser.wordUkr = text;
             thisUser.context.UKRwords = false;
             thisUser.ukrWordId = msg.message_id;
-            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            await sleep(1000);
+
             bot.deleteMessage(chatId, thisUser.startInputWords)
             bot.deleteMessage(chatId, thisUser.engWordId)
             bot.deleteMessage(chatId, thisUser.ukrWordId)
             thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply);
-            thisUser.messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+
             return
         }
 
@@ -377,6 +380,7 @@ bot.on("message", async msg => {
             thisUser.context.ENGwords = false;
             thisUser.context.UKRwords = true;
             thisUser.messagesToDelete.push(messageIdMain);
+
             return
         }
 
@@ -385,31 +389,33 @@ bot.on("message", async msg => {
             thisUser.lessonName = text;
             thisUser.context.lessonName = false;
             console.log(thisUser.lessonName)
-            await new Promise(resolve => setTimeout(resolve, 1000));
+
+            await sleep(1000);
+
             bot.deleteMessage(chatId, thisUser.lessonNameId)
             bot.deleteMessage(chatId, thisUser.lessonNameMessage)
             thisUser.startInputWords = (await bot.sendMessage(chatId, "Тепер додавай слова,\nСпочатку відправ АНГ слово,\nА потім окремо УКР")).message_id;
             thisUser.messagesToDelete.push(thisUser.startInputWords);
             thisUser.context.ENGwords = true;
             thisUser.messagesToDelete.push(messageIdMain);
+
             return
         }
 
         if (text === "/create") {
             bot.deleteMessage(chatId, thisUser.messageId)
             thisUser.lessonNameMessage = (await bot.sendMessage(chatId, "Введи назву уроку")).message_id;
-            thisUser.messagesToDelete.push(thisUser.lessonNameMessage);
+            thisUser.messagesToDelete.push(thisUser.lessonNameMessage, messageIdMain);
             thisUser.context.lessonName = true;
-            thisUser.messagesToDelete.push(messageIdMain);
+
             return
         }
 
         if (text === "/show") {
             await bot.deleteMessage(chatId, msg.message_id)
             thisUser.messageIdReply = (await bot.sendMessage(chatId, await getLessons(currentUserId), buttons.showingReply)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply);
-            //console.log("list:", await getLessons())
-            thisUser.messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+
             return
         }
 
@@ -427,12 +433,11 @@ bot.on("message", async msg => {
 
             await bot.deleteMessage(chatId, msg.message_id)
             thisUser.messageIdReply = (await bot.sendMessage(chatId, `Якою мовою показувати слова?`, buttons.chooseLenguage)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply);
-            //mix
 
+            //mix
             thisUser.mixedWords = shuffleArray(thisUser.chosenLesson);
             console.log("mixed lesson", thisUser.mixedWords)
-            thisUser.messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
             return
         }
 
@@ -442,7 +447,6 @@ bot.on("message", async msg => {
             thisUser.context.delete = false;
             await bot.deleteMessage(chatId, thisUser.deleteMessageId)
             await bot.deleteMessage(chatId, thisUser.messageIdReply)
-            //console.log(lessonsToRepeat)
 
             let sure = (await bot.sendMessage(chatId, `Я видаляю: <b>${thisUser.lessonsArr[lessonsToDelete]}</b>\nВірно?`, buttons.deleteConfirm)).message_id
 
@@ -458,10 +462,10 @@ bot.on("message", async msg => {
                     resolve()
                 })
             })
+
             thisUser.messagesToDelete.push(sure);
             await bot.deleteMessage(chatId, sure)
 
-            //deleteLessonByName(lessonsArr[lessonsToDelete])
             console.log("chosen lesson to delete: ", lessonsToDelete)
             thisUser.messagesToDelete.push(messageIdMain);
             bot.deleteMessage(chatId, messageToDelete)
@@ -476,8 +480,8 @@ bot.on("message", async msg => {
             bot.deleteMessage(chatId, thisUser.inputAgainId)
             thisUser.wordEng = text;
             thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply);
-            thisUser.messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+
             return
         }
 
@@ -488,20 +492,19 @@ bot.on("message", async msg => {
             bot.deleteMessage(chatId, thisUser.inputAgainId)
             thisUser.wordUkr = text;
             thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply);
-            thisUser.messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+
             return
         }
 
         if (thisUser.context.audioExpext) {
             thisUser.context.audioExpext = false;
             thisUser.audioId = msg.message_id;
-            //console.log(msg)
             thisUser.voiceFileId = msg.voice.file_id;
             await bot.deleteMessage(chatId, thisUser.audioMessageId)
             thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply);
-            thisUser.messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+
             return
         }
 
@@ -512,8 +515,8 @@ bot.on("message", async msg => {
             thisUser.exampleText += `${text}\n`;
             await bot.deleteMessage(chatId, msg.message_id);
             thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply);
-            thisUser.messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+
             return
         }
 
@@ -588,16 +591,21 @@ bot.on("callback_query", async msg => {
 
     if (msg.data === "deleteUser") {
         let shortMessage = (await bot.sendMessage(adminID, "ІД юзера якому скасувати доступ")).message_id;
-        bot.once("message", async (msg) => {
-            let userId = msg.text;
-            bot.deleteMessage(adminID, msg.message_id);
-            bot.deleteMessage(adminID, shortMessage);
-            botUsers[userId].access = false;
-            dbUsers.run('UPDATE users SET access = 0 WHERE id = ?', [userId]);
-            let shortMessage2 = (await bot.sendMessage(adminID, `скасовано доступ для користувача ID:${userId}`)).message_id;
-            setTimeout(() => {
-                bot.deleteMessage(adminID, shortMessage2)
-            }, 4000)
+
+        await new Promise((resolve) => {
+            bot.once("message", async (msg) => {
+                let userId = msg.text;
+                bot.deleteMessage(adminID, msg.message_id);
+                bot.deleteMessage(adminID, shortMessage);
+                botUsers[userId].access = false;
+                dbUsers.run('UPDATE users SET access = 0 WHERE id = ?', [userId]);
+                let shortMessage2 = (await bot.sendMessage(adminID, `скасовано доступ для користувача ID:${userId}`)).message_id;
+                setTimeout(() => {
+                    bot.deleteMessage(adminID, shortMessage2)
+                }, 4000)
+
+                resolve()
+            })
         })
     }
 
@@ -863,7 +871,9 @@ bot.on("callback_query", async msg => {
 
                             users[callbackUser].context.help = false;
                             let rightAnswer = (await bot.sendMessage(chatId, `🟢 Правильно: <b>${question} - ${answer}</b>`, { parse_mode: "HTML" })).message_id;
-                            await new Promise(resolve => setTimeout(resolve, 100));
+
+                            await sleep(100);
+
                             users[callbackUser].messagesToDelete.push(rightAnswer);
                             let rightAnswerAudio = [];
                             let rightAnswerExample = [];
@@ -923,7 +933,9 @@ bot.on("callback_query", async msg => {
                         } else {
 
                             let message2 = (await bot.sendMessage(chatId, "🔴 Неправильно, спробуйте ще раз.")).message_id;
-                            await new Promise(resolve => setTimeout(resolve, 1500));
+
+                            await sleep(1500);
+
                             users[callbackUser].messagesToDelete.push(message2);
                             users[callbackUser].context.help = true;
 
