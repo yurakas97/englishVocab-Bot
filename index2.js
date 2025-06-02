@@ -144,6 +144,7 @@ bot.on("message", async msg => {
     let user = msg.from.id;
     let text = msg.text;
     const { id, username, first_name, last_name } = msg.from;
+    let thisUser = users[user];
 
     //let isSubscribed;
     let hasAccess;
@@ -238,17 +239,18 @@ bot.on("message", async msg => {
             }
         };
         console.log(users[user])
+        thisUser = users[user];
     }
 
 
-    if (users[user].exist) {
-        //console.log(users[user])
+    if (thisUser.exist) {
+        //console.log(thisUser)
 
-        let currentUser = users[user].id;
-        console.log(`user entered: ${currentUser}`);
+        let currentUserId = thisUser.id;
+        console.log(`user entered: ${currentUserId}`);
         let chatId = user;
-        users[user].messageId = msg.message_id;
-        users[user].lastActionTime = Date.now();
+        thisUser.messageId = msg.message_id;
+        thisUser.lastActionTime = Date.now();
 
 
         if (text === "/admin") {
@@ -270,15 +272,14 @@ bot.on("message", async msg => {
         }
 
         if (text === "/start") {
-            users[user].messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(messageIdMain);
             await greeting(chatId);
         }
 
-        //db = new sqlite3.Database(`./${users[user]}/vocab_bot.db`);
-        await getUserDB(currentUser);
+        await getUserDB(currentUserId);
 
-        await getUserDB(currentUser).serialize(() => {
-            getUserDB(currentUser).run(`
+        await getUserDB(currentUserId).serialize(() => {
+            getUserDB(currentUserId).run(`
               CREATE TABLE IF NOT EXISTS lessons (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
@@ -288,56 +289,56 @@ bot.on("message", async msg => {
         });
 
         if (text === "/stop") {
-            users[user].rightAnswerId.forEach((item) => {
+            thisUser.rightAnswerId.forEach((item) => {
                 bot.deleteMessage(chatId, item)
             })
 
-            users[user].rightAnswerAudioId.forEach((item) => {
+            thisUser.rightAnswerAudioId.forEach((item) => {
                 bot.deleteMessage(chatId, item)
             })
 
-            users[user].rightAnswerExampleId.forEach((item) => {
+            thisUser.rightAnswerExampleId.forEach((item) => {
                 bot.deleteMessage(chatId, item)
             })
 
-            if (users[user].questionId) bot.deleteMessage(chatId, users[user].questionId)
-            if (users[user].questionId3) bot.deleteMessage(chatId, users[user].questionId3)
+            if (thisUser.questionId) bot.deleteMessage(chatId, thisUser.questionId)
+            if (thisUser.questionId3) bot.deleteMessage(chatId, thisUser.questionId3)
 
-            users[user].messageIdReply = null;
-            users[user].chosenLesson = {};
-            users[user].mixedWords = null;;
-            users[user].lessonName = "";
-            users[user].lessonCore = {};
-            users[user].wordEng = null;
-            users[user].wordUkr = null;;
-            users[user].promptId = null;
-            users[user].promptId2 = null;
-            users[user].currentWord = null;
-            users[user].questionId = null;
-            users[user].questionId3 = null;
-            users[user].rightAnswerId = [];
-            users[user].rightAnswerAudioId = [];
-            users[user].rightAnswerExampleId = [];
-            users[user].audioId = null;
-            users[user].voiceFileId = null;
-            users[user].example = null;
-            users[user].exampleText = `\n`;
-            users[user].lessonsArr = [];
-            users[user].messageId = null;
-            users[user].lastActionTime = null;
-            users[user].lessonNameMessage = null;
-            users[user].startInputWords = null;
-            users[user].engWordId = null;
-            users[user].ukrWordId = null;
-            users[user].inputAgainId = null;
-            users[user].lessonNameId = null;
-            users[user].audioMessageId = null;
-            users[user].exampleMessageId = null;
-            users[user].deleteMessageId = null;
-            users[user].messageRepeadId = null;
-            users[user].messagesToDelete = [];
+            thisUser.messageIdReply = null;
+            thisUser.chosenLesson = {};
+            thisUser.mixedWords = null;;
+            thisUser.lessonName = "";
+            thisUser.lessonCore = {};
+            thisUser.wordEng = null;
+            thisUser.wordUkr = null;;
+            thisUser.promptId = null;
+            thisUser.promptId2 = null;
+            thisUser.currentWord = null;
+            thisUser.questionId = null;
+            thisUser.questionId3 = null;
+            thisUser.rightAnswerId = [];
+            thisUser.rightAnswerAudioId = [];
+            thisUser.rightAnswerExampleId = [];
+            thisUser.audioId = null;
+            thisUser.voiceFileId = null;
+            thisUser.example = null;
+            thisUser.exampleText = `\n`;
+            thisUser.lessonsArr = [];
+            thisUser.messageId = null;
+            thisUser.lastActionTime = null;
+            thisUser.lessonNameMessage = null;
+            thisUser.startInputWords = null;
+            thisUser.engWordId = null;
+            thisUser.ukrWordId = null;
+            thisUser.inputAgainId = null;
+            thisUser.lessonNameId = null;
+            thisUser.audioMessageId = null;
+            thisUser.exampleMessageId = null;
+            thisUser.deleteMessageId = null;
+            thisUser.messageRepeadId = null;
+            thisUser.messagesToDelete = [];
 
-            users[user].context = {
+            thisUser.context = {
                 lessonName: false,
                 ENGwords: false,
                 UKRwords: false,
@@ -350,100 +351,100 @@ bot.on("message", async msg => {
                 delete: false,
             }
 
-            users[user].messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(messageIdMain);
             dbConnections[user] = null;
             console.log("stoped")
             return
         }
 
-        if (users[user].context.UKRwords) {
-            users[user].wordUkr = text;
-            users[user].context.UKRwords = false;
-            users[user].ukrWordId = msg.message_id;
+        if (thisUser.context.UKRwords) {
+            thisUser.wordUkr = text;
+            thisUser.context.UKRwords = false;
+            thisUser.ukrWordId = msg.message_id;
             await new Promise(resolve => setTimeout(resolve, 1000));
-            bot.deleteMessage(chatId, users[user].startInputWords)
-            bot.deleteMessage(chatId, users[user].engWordId)
-            bot.deleteMessage(chatId, users[user].ukrWordId)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            users[user].messagesToDelete.push(users[user].messageIdReply);
-            users[user].messagesToDelete.push(messageIdMain);
+            bot.deleteMessage(chatId, thisUser.startInputWords)
+            bot.deleteMessage(chatId, thisUser.engWordId)
+            bot.deleteMessage(chatId, thisUser.ukrWordId)
+            thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+            thisUser.messagesToDelete.push(thisUser.messageIdReply);
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
-        if (users[user].context.ENGwords) {
-            users[user].engWordId = msg.message_id;
-            users[user].wordEng = text;
-            users[user].context.ENGwords = false;
-            users[user].context.UKRwords = true;
-            users[user].messagesToDelete.push(messageIdMain);
+        if (thisUser.context.ENGwords) {
+            thisUser.engWordId = msg.message_id;
+            thisUser.wordEng = text;
+            thisUser.context.ENGwords = false;
+            thisUser.context.UKRwords = true;
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
-        if (users[user].context.lessonName) {
-            users[user].lessonNameId = msg.message_id;
-            users[user].lessonName = text;
-            users[user].context.lessonName = false;
-            console.log(users[user].lessonName)
+        if (thisUser.context.lessonName) {
+            thisUser.lessonNameId = msg.message_id;
+            thisUser.lessonName = text;
+            thisUser.context.lessonName = false;
+            console.log(thisUser.lessonName)
             await new Promise(resolve => setTimeout(resolve, 1000));
-            bot.deleteMessage(chatId, users[user].lessonNameId)
-            bot.deleteMessage(chatId, users[user].lessonNameMessage)
-            users[user].startInputWords = (await bot.sendMessage(chatId, "Тепер додавай слова,\nСпочатку відправ АНГ слово,\nА потім окремо УКР")).message_id;
-            users[user].messagesToDelete.push(users[user].startInputWords);
-            users[user].context.ENGwords = true;
-            users[user].messagesToDelete.push(messageIdMain);
+            bot.deleteMessage(chatId, thisUser.lessonNameId)
+            bot.deleteMessage(chatId, thisUser.lessonNameMessage)
+            thisUser.startInputWords = (await bot.sendMessage(chatId, "Тепер додавай слова,\nСпочатку відправ АНГ слово,\nА потім окремо УКР")).message_id;
+            thisUser.messagesToDelete.push(thisUser.startInputWords);
+            thisUser.context.ENGwords = true;
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
         if (text === "/create") {
-            bot.deleteMessage(chatId, users[user].messageId)
-            users[user].lessonNameMessage = (await bot.sendMessage(chatId, "Введи назву уроку")).message_id;
-            users[user].messagesToDelete.push(users[user].lessonNameMessage);
-            users[user].context.lessonName = true;
-            users[user].messagesToDelete.push(messageIdMain);
+            bot.deleteMessage(chatId, thisUser.messageId)
+            thisUser.lessonNameMessage = (await bot.sendMessage(chatId, "Введи назву уроку")).message_id;
+            thisUser.messagesToDelete.push(thisUser.lessonNameMessage);
+            thisUser.context.lessonName = true;
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
         if (text === "/show") {
             await bot.deleteMessage(chatId, msg.message_id)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, await getLessons(currentUser), buttons.showingReply)).message_id;
-            users[user].messagesToDelete.push(users[user].messageIdReply);
+            thisUser.messageIdReply = (await bot.sendMessage(chatId, await getLessons(currentUserId), buttons.showingReply)).message_id;
+            thisUser.messagesToDelete.push(thisUser.messageIdReply);
             //console.log("list:", await getLessons())
-            users[user].messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
-        if (users[user].context.repead) {
+        if (thisUser.context.repead) {
             let lessonsToRepeat = text;
-            users[user].context.repead = false;
-            bot.deleteMessage(chatId, users[user].messageRepeadId)
-            bot.deleteMessage(chatId, users[user].messageIdReply)
+            thisUser.context.repead = false;
+            bot.deleteMessage(chatId, thisUser.messageRepeadId)
+            bot.deleteMessage(chatId, thisUser.messageIdReply)
 
-            getLesson(users[user].lessonsArr[lessonsToRepeat], currentUser, (words) => {
+            getLesson(thisUser.lessonsArr[lessonsToRepeat], currentUserId, (words) => {
                 console.log("Words in lesson:", words);
-                users[user].chosenLesson = Object.entries(words);
+                thisUser.chosenLesson = Object.entries(words);
             });
-            console.log("chosen lesson: ", users[user].chosenLesson)
+            console.log("chosen lesson: ", thisUser.chosenLesson)
 
             await bot.deleteMessage(chatId, msg.message_id)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `Якою мовою показувати слова?`, buttons.chooseLenguage)).message_id;
-            users[user].messagesToDelete.push(users[user].messageIdReply);
+            thisUser.messageIdReply = (await bot.sendMessage(chatId, `Якою мовою показувати слова?`, buttons.chooseLenguage)).message_id;
+            thisUser.messagesToDelete.push(thisUser.messageIdReply);
             //mix
 
-            users[user].mixedWords = shuffleArray(users[user].chosenLesson);
-            console.log("mixed lesson", users[user].mixedWords)
-            users[user].messagesToDelete.push(messageIdMain);
+            thisUser.mixedWords = shuffleArray(thisUser.chosenLesson);
+            console.log("mixed lesson", thisUser.mixedWords)
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
-        if (users[user].context.delete) {
+        if (thisUser.context.delete) {
             let lessonsToDelete = text;
             let messageToDelete = msg.message_id;
-            users[user].context.delete = false;
-            await bot.deleteMessage(chatId, users[user].deleteMessageId)
-            await bot.deleteMessage(chatId, users[user].messageIdReply)
+            thisUser.context.delete = false;
+            await bot.deleteMessage(chatId, thisUser.deleteMessageId)
+            await bot.deleteMessage(chatId, thisUser.messageIdReply)
             //console.log(lessonsToRepeat)
 
-            let sure = (await bot.sendMessage(chatId, `Я видаляю: <b>${users[user].lessonsArr[lessonsToDelete]}</b>\nВірно?`, buttons.deleteConfirm)).message_id
+            let sure = (await bot.sendMessage(chatId, `Я видаляю: <b>${thisUser.lessonsArr[lessonsToDelete]}</b>\nВірно?`, buttons.deleteConfirm)).message_id
 
             await new Promise((resolve) => {
                 bot.once("callback_query", async (msg) => {
@@ -451,68 +452,68 @@ bot.on("message", async msg => {
                     //let messageId = msg.message_id;
 
                     if (data === "yesdelete") {
-                        deleteLessonByName(users[user].lessonsArr[lessonsToDelete], currentUser)
+                        deleteLessonByName(thisUser.lessonsArr[lessonsToDelete], currentUserId)
                     }
 
                     resolve()
                 })
             })
-            users[user].messagesToDelete.push(sure);
+            thisUser.messagesToDelete.push(sure);
             await bot.deleteMessage(chatId, sure)
 
             //deleteLessonByName(lessonsArr[lessonsToDelete])
             console.log("chosen lesson to delete: ", lessonsToDelete)
-            users[user].messagesToDelete.push(messageIdMain);
+            thisUser.messagesToDelete.push(messageIdMain);
             bot.deleteMessage(chatId, messageToDelete)
 
             return
         }
 
-        if (users[user].context.editEng) {
-            users[user].inputAgainId = msg.message_id;
-            users[user].context.editEng = false;
-            await bot.deleteMessage(chatId, users[user].messageIdReply)
-            bot.deleteMessage(chatId, users[user].inputAgainId)
-            users[user].wordEng = text;
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            users[user].messagesToDelete.push(users[user].messageIdReply);
-            users[user].messagesToDelete.push(messageIdMain);
+        if (thisUser.context.editEng) {
+            thisUser.inputAgainId = msg.message_id;
+            thisUser.context.editEng = false;
+            await bot.deleteMessage(chatId, thisUser.messageIdReply)
+            bot.deleteMessage(chatId, thisUser.inputAgainId)
+            thisUser.wordEng = text;
+            thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+            thisUser.messagesToDelete.push(thisUser.messageIdReply);
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
-        if (users[user].context.editUkr) {
-            users[user].inputAgainId = msg.message_id;
-            users[user].context.editUkr = false;
-            await bot.deleteMessage(chatId, users[user].messageIdReply)
-            bot.deleteMessage(chatId, users[user].inputAgainId)
-            users[user].wordUkr = text;
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            users[user].messagesToDelete.push(users[user].messageIdReply);
-            users[user].messagesToDelete.push(messageIdMain);
+        if (thisUser.context.editUkr) {
+            thisUser.inputAgainId = msg.message_id;
+            thisUser.context.editUkr = false;
+            await bot.deleteMessage(chatId, thisUser.messageIdReply)
+            bot.deleteMessage(chatId, thisUser.inputAgainId)
+            thisUser.wordUkr = text;
+            thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+            thisUser.messagesToDelete.push(thisUser.messageIdReply);
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
-        if (users[user].context.audioExpext) {
-            users[user].context.audioExpext = false;
-            users[user].audioId = msg.message_id;
+        if (thisUser.context.audioExpext) {
+            thisUser.context.audioExpext = false;
+            thisUser.audioId = msg.message_id;
             //console.log(msg)
-            users[user].voiceFileId = msg.voice.file_id;
-            await bot.deleteMessage(chatId, users[user].audioMessageId)
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            users[user].messagesToDelete.push(users[user].messageIdReply);
-            users[user].messagesToDelete.push(messageIdMain);
+            thisUser.voiceFileId = msg.voice.file_id;
+            await bot.deleteMessage(chatId, thisUser.audioMessageId)
+            thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+            thisUser.messagesToDelete.push(thisUser.messageIdReply);
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
-        if (users[user].context.examplesExpect) {
-            users[user].context.examplesExpect = false;
-            users[user].example = text;
-            await bot.deleteMessage(chatId, users[user].exampleMessageId)
-            users[user].exampleText += `${text}\n`;
+        if (thisUser.context.examplesExpect) {
+            thisUser.context.examplesExpect = false;
+            thisUser.example = text;
+            await bot.deleteMessage(chatId, thisUser.exampleMessageId)
+            thisUser.exampleText += `${text}\n`;
             await bot.deleteMessage(chatId, msg.message_id);
-            users[user].messageIdReply = (await bot.sendMessage(chatId, `<b>${users[user].wordEng} - ${users[user].wordUkr}</b>${users[user].exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            users[user].messagesToDelete.push(users[user].messageIdReply);
-            users[user].messagesToDelete.push(messageIdMain);
+            thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+            thisUser.messagesToDelete.push(thisUser.messageIdReply);
+            thisUser.messagesToDelete.push(messageIdMain);
             return
         }
 
