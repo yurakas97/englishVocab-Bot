@@ -1,7 +1,6 @@
 require('dotenv').config();
 const TelegramApi = require('node-telegram-bot-api');
 const path = require("path");
-//const { brotliCompress } = require('zlib');
 const fs = require('fs');
 const https = require('https');
 const sqlite3 = require('sqlite3').verbose();
@@ -262,6 +261,7 @@ bot.on("message", async msg => {
                         [{ text: '✅ З доступом', callback_data: 'allowed' }],
                         [{ text: '❌ Без доступу', callback_data: 'denied' }],
                         [{ text: '📢 Розсилка', callback_data: 'broadcast' }],
+                        [{ text: 'Видалити юзера', callback_data: 'deleteUser' }],
                         [{ text: 'Закрити', callback_data: 'closeAdmin' }]
                     ]
                 }
@@ -528,33 +528,6 @@ bot.on("callback_query", async msg => {
     let userName = msg.from.username;
     const action = msg.data;
 
-    if (action.startsWith('accept/')) {
-        const userId = action.split('/')[1];
-        const username = action.split('/')[2];
-        if (botUsers[userId]) {
-            botUsers[userId].access = true;
-            dbUsers.run('UPDATE users SET access = 1 WHERE id = ?', [userId]);
-            await bot.sendMessage(userId, '✅ Вам надано доступ. Вітаємо!');
-            await bot.sendMessage(adminID, `🔗 Користувачу @${username} надано доступ.`);
-            await greeting(userId);
-        } else {
-            await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
-        }
-    }
-
-    if (action.startsWith('deny/')) {
-        const userId = action.split('/')[1];
-        const username = action.split('/')[2];
-        if (botUsers[userId]) {
-            //delete botUsers[userId];
-            //dbUsers.run('DELETE FROM users WHERE id = ?', [userId]);
-            await bot.sendMessage(userId, '❌ Ваш запит на доступ було відхилено.');
-            await bot.sendMessage(adminID, `🔗 Запит користувача @${username} відхилено.`);
-        } else {
-            await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
-        }
-    }
-
 
     if (!users[callbackUser]) {
 
@@ -611,6 +584,48 @@ bot.on("callback_query", async msg => {
     }
 
     users[callbackUser].lastActionTime = Date.now();
+
+    if (msg.data === "deleteUser") {
+        let shortMessage = (await bot.sendMessage(adminID, "ІД юзера якому скасувати доступ")).message_id;
+        bot.once("message", async (msg) => {
+            let userId = msg.text;
+            bot.deleteMessage(adminID, msg.message_id);
+            bot.deleteMessage(adminID, shortMessage);
+            botUsers[userId].access = false;
+            dbUsers.run('UPDATE users SET access = 0 WHERE id = ?', [userId]);
+            let shortMessage2 = (await bot.sendMessage(adminID, `скасовано доступ для користувача ID:${userId}`)).message_id;
+            setTimeout(() => {
+                bot.deleteMessage(adminID, shortMessage2)
+            }, 4000)
+        })
+    }
+
+    if (action.startsWith('accept/')) {
+        const userId = action.split('/')[1];
+        const username = action.split('/')[2];
+        if (botUsers[userId]) {
+            botUsers[userId].access = true;
+            dbUsers.run('UPDATE users SET access = 1 WHERE id = ?', [userId]);
+            await bot.sendMessage(userId, '✅ Вам надано доступ. Вітаємо!');
+            await bot.sendMessage(adminID, `🔗 Користувачу @${username} надано доступ.`);
+            await greeting(userId);
+        } else {
+            await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
+        }
+    }
+
+    if (action.startsWith('deny/')) {
+        const userId = action.split('/')[1];
+        const username = action.split('/')[2];
+        if (botUsers[userId]) {
+            //delete botUsers[userId];
+            //dbUsers.run('DELETE FROM users WHERE id = ?', [userId]);
+            await bot.sendMessage(userId, '❌ Ваш запит на доступ було відхилено.');
+            await bot.sendMessage(adminID, `🔗 Запит користувача @${username} відхилено.`);
+        } else {
+            await bot.sendMessage(adminID, '⚠️ Користувач не знайдений.');
+        }
+    }
 
     if (msg.data === "delete") {
         users[callbackUser].deleteMessageId = (await bot.sendMessage(chatId, "Який урок видалити? (Введи номер уроку)")).message_id;
