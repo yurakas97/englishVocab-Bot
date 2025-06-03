@@ -111,22 +111,6 @@ dbUsers.run(`
   )
 `);
 
-// 2. Завантаження з бази при старті
-function loadUsersFromDB() {
-    dbUsers.all('SELECT * FROM users', [], (err, rows) => {
-        if (err) return console.error(err);
-        rows.forEach(row => {
-            botUsers[row.id] = {
-                username: row.username,
-                first_name: row.first_name,
-                last_name: row.last_name,
-                access: !!row.access
-            };
-        });
-        console.log('✅ Користувачі завантажені з бази.');
-        console.log(botUsers);
-    });
-}
 loadUsersFromDB();
 
 
@@ -156,25 +140,37 @@ bot.on("message", async msg => {
         hasAccess = false;
     }
 
+    // OPEN BOT
     if (!hasAccess) {
-        botUsers[id] = { username, first_name, last_name, access: false };
+        botUsers[id] = { username, first_name, last_name, access: true };
         dbUsers.run('INSERT OR IGNORE INTO users (id, username, first_name, last_name, access) VALUES (?, ?, ?, ?, ?)',
             [id, username, first_name, last_name, 0]);
-        await bot.sendMessage(id, '🔒 Ви подали заявку на доступ. Очікуйте підтвердження.');
 
-        const text = `🔔 Нова заявка:\n👤 ${first_name} (@${username})\nID: ${id}`;
-        await bot.sendMessage(adminID, text, {
-            reply_markup: {
-                inline_keyboard: [[
-                    { text: '✅ Прийняти', callback_data: `accept/${id}/${username}` },
-                    { text: '❌ Відхилити', callback_data: `deny/${id}/${username}` }
-                ]]
-            }
-        });
-        return
+        dbUsers.run('UPDATE users SET access = 1 WHERE id = ?', [id]);
     }
 
 
+    // CLOSED BOT
+    // if (!hasAccess) {
+    //     botUsers[id] = { username, first_name, last_name, access: false };
+    //     dbUsers.run('INSERT OR IGNORE INTO users (id, username, first_name, last_name, access) VALUES (?, ?, ?, ?, ?)',
+    //         [id, username, first_name, last_name, 0]);
+
+    //     await bot.sendMessage(id, '🔒 Ви подали заявку на доступ. Очікуйте підтвердження.');
+
+    //     const text = `🔔 Нова заявка:\n👤 ${first_name} (@${username})\nID: ${id}`;
+    //     await bot.sendMessage(adminID, text, {
+    //         reply_markup: {
+    //             inline_keyboard: [[
+    //                 { text: '✅ Прийняти', callback_data: `accept/${id}/${username}` },
+    //                 { text: '❌ Відхилити', callback_data: `deny/${id}/${username}` }
+    //             ]]
+    //         }
+    //     });
+    //     return
+    // }
+
+    // IF YOU NEED SUBSCRIBSION TO GIVE ACCESS
     // if (isSubscribed === undefined) {
     //     isSubscribed = await checkSubscription(user);
     // }
@@ -438,6 +434,7 @@ bot.on("message", async msg => {
             thisUser.mixedWords = shuffleArray(thisUser.chosenLesson);
             console.log("mixed lesson", thisUser.mixedWords)
             thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+
             return
         }
 
@@ -445,6 +442,7 @@ bot.on("message", async msg => {
             let lessonsToDelete = text;
             let messageToDelete = msg.message_id;
             thisUser.context.delete = false;
+
             await bot.deleteMessage(chatId, thisUser.deleteMessageId)
             await bot.deleteMessage(chatId, thisUser.messageIdReply)
 
@@ -1431,5 +1429,22 @@ function lastActionTimer() {
         }
     }, 40000000)
 };
+
+// 2. Завантаження з бази при старті
+function loadUsersFromDB() {
+    dbUsers.all('SELECT * FROM users', [], (err, rows) => {
+        if (err) return console.error(err);
+        rows.forEach(row => {
+            botUsers[row.id] = {
+                username: row.username,
+                first_name: row.first_name,
+                last_name: row.last_name,
+                access: !!row.access
+            };
+        });
+        console.log('✅ Користувачі завантажені з бази.');
+        console.log(botUsers);
+    });
+}
 
 lastActionTimer()
