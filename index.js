@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require('fs');
 const https = require('https');
 const sqlite3 = require('sqlite3').verbose();
+const cron = require('node-cron');
 
 const token = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramApi(token, { polling: true });
@@ -19,6 +20,9 @@ let adminActionsMsg = [];
 let adminMessages = [];
 let usersToBeNotified = [];
 let textToSend = "";
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+const REMIND_DAYS = [1, 3, 7, 14];
 
 const buttons = {
 
@@ -116,12 +120,13 @@ dbUsers.run(`
     username TEXT,
     first_name TEXT,
     last_name TEXT,
-    access INTEGER
+    access INTEGER,
+    last_interaction INTEGER
   )
 `);
 
 loadUsersFromDB();
-
+console.log(Date.now())
 
 bot.setMyCommands([
     { command: "/create", description: 'Створити урок' },
@@ -152,9 +157,9 @@ bot.on("message", async msg => {
 
     // OPEN BOT
     if (!hasAccess) {
-        botUsers[id] = { username, first_name, last_name, access: true };
-        dbUsers.run('INSERT OR IGNORE INTO users (id, username, first_name, last_name, access) VALUES (?, ?, ?, ?, ?)',
-            [id, username, first_name, last_name, 0]);
+        botUsers[id] = { username, first_name, last_name, access: true, last_interaction: null };
+        dbUsers.run('INSERT OR IGNORE INTO users (id, username, first_name, last_name, access, last_interaction) VALUES (?, ?, ?, ?, ?, ?)',
+            [id, username, first_name, last_name, 0, 0]);
 
         dbUsers.run('UPDATE users SET access = 1 WHERE id = ?', [id]);
     }
@@ -257,8 +262,9 @@ bot.on("message", async msg => {
         console.log(`user entered: ${currentUserId}`);
         let chatId = user;
         thisUser.messageId = msg.message_id;
-        thisUser.lastActionTime = Date.now();
 
+        thisUser.lastActionTime = Date.now();
+        dbUsers.run(`UPDATE users SET last_interaction = ${thisUser.lastActionTime} WHERE id = ?`, [currentUserId]);
 
         if (text === "/admin") {
             if (user != adminID) return
@@ -597,6 +603,7 @@ bot.on("callback_query", async msg => {
     }
 
     thisUser.lastActionTime = Date.now();
+    dbUsers.run(`UPDATE users SET last_interaction = ${thisUser.lastActionTime} WHERE id = ?`, [callbackUser]);
 
     if (msg.data === "deleteUser") {
         let shortMessage = (await bot.sendMessage(adminID, "ІД юзера якому скасувати доступ")).message_id;
@@ -1449,7 +1456,8 @@ function loadUsersFromDB() {
                 username: row.username,
                 first_name: row.first_name,
                 last_name: row.last_name,
-                access: !!row.access
+                access: !!row.access,
+                last_interaction: row.last_interaction
             };
         });
         console.log('✅ Користувачі завантажені з бази.');
@@ -1457,4 +1465,46 @@ function loadUsersFromDB() {
     });
 }
 
+function checkInactivityAndNotify() {
+    const now = Date.now();
+
+    dbUsers.all('SELECT * FROM users', [], (err, rows) => {
+        if (err) return console.error(err);
+
+        rows.forEach(user => {
+            if (!user.last_interaction) return;
+
+            const last = parseInt(user.last_interaction);
+            const diffDays = Math.floor((now - last) / DAY_MS);
+
+            if (REMIND_DAYS.includes(diffDays)) {
+                let message = "";
+
+                switch (diffDays) {
+                    case 1:
+                        message = "📖 Один день без англійської — саме час повернутись і освіжити слова!";
+                        break;
+                    case 3:
+                        message = "🔁 Вже 3 дні без практики. Не дай словам забутись — заходь повторити або вивчити нові слова!";
+                        break;
+                    case 7:
+                        message = "🗓 Минув тиждень. Повернись до навчання і зроби ще один крок до fluency!";
+                        break;
+                    case 14:
+                        message = "🚀 Два тижні тиші... Ходімо разом пригадати старі або вивчити нові слова! 💪";
+                        break;
+                }
+
+                bot.sendMessage(user.id, message);
+                console.log(`user: ${user.username} got: ${message}`)
+            }
+        });
+    });
+}
+
 lastActionTimer()
+
+cron.schedule('0 10 * * *', () => {
+    console.log('Запуск перевірки неактивних користувачів...');
+    checkInactivityAndNotify();
+});
