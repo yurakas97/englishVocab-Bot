@@ -21,6 +21,7 @@ let usersToBeNotified = [];
 let textToSend = "";
 
 const buttons = {
+
     actionNextWord: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -32,6 +33,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     finishConfirm: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -40,6 +42,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     deleteConfirm: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -48,6 +51,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     showingReply: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -57,6 +61,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     chooseLenguage: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -65,6 +70,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     helpButton: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -73,6 +79,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     finishButton: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -81,6 +88,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     deleteMessage: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -89,6 +97,7 @@ const buttons = {
         }),
         parse_mode: 'HTML'
     },
+
     confirmSend: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -134,6 +143,7 @@ bot.on("message", async msg => {
     //let isSubscribed;
     let hasAccess;
     let userInfo = botUsers[id];
+
     if (userInfo) {
         hasAccess = userInfo.access;
     } else {
@@ -260,8 +270,8 @@ bot.on("message", async msg => {
                         [{ text: '✅ З доступом', callback_data: 'allowed' }],
                         [{ text: '❌ Без доступу', callback_data: 'denied' }],
                         [{ text: '📢 Розсилка', callback_data: 'broadcast' }],
-                        [{ text: 'Видалити юзера', callback_data: 'deleteUser' }],
-                        [{ text: 'Закрити', callback_data: 'closeAdmin' }]
+                        [{ text: '🗑️ Видалити користувача', callback_data: 'deleteUser' }],
+                        [{ text: '🧹 Закрити', callback_data: 'closeAdmin' }]
                     ]
                 }
             })).message_id;
@@ -390,7 +400,7 @@ bot.on("message", async msg => {
 
             bot.deleteMessage(chatId, thisUser.lessonNameId)
             bot.deleteMessage(chatId, thisUser.lessonNameMessage)
-            thisUser.startInputWords = (await bot.sendMessage(chatId, "Тепер додавай слова,\nСпочатку відправ АНГ слово,\nА потім окремо УКР")).message_id;
+            thisUser.startInputWords = (await bot.sendMessage(chatId, "🔤 Тепер додавай слова!\nСпочатку надішли 🇬🇧 англійське слово,\nа потім окремо 🇺🇦 український переклад.")).message_id;
             thisUser.messagesToDelete.push(thisUser.startInputWords);
             thisUser.context.ENGwords = true;
             thisUser.messagesToDelete.push(messageIdMain);
@@ -400,7 +410,7 @@ bot.on("message", async msg => {
 
         if (text === "/create") {
             bot.deleteMessage(chatId, thisUser.messageId)
-            thisUser.lessonNameMessage = (await bot.sendMessage(chatId, "Введи назву уроку")).message_id;
+            thisUser.lessonNameMessage = (await bot.sendMessage(chatId, "📚 Введи назву уроку:\nНаприклад: 🇬🇧 Lesson 1 або 🧠 Нові слова")).message_id;
             thisUser.messagesToDelete.push(thisUser.lessonNameMessage, messageIdMain);
             thisUser.context.lessonName = true;
 
@@ -600,7 +610,7 @@ bot.on("callback_query", async msg => {
                 botUsers[userId].access = false;
 
                 dbUsers.run('UPDATE users SET access = 0 WHERE id = ?', [userId]);
-                let shortMessage2 = (await bot.sendMessage(adminID, `скасовано доступ для користувача ID:${userId}`)).message_id;
+                let shortMessage2 = (await bot.sendMessage(adminID, `🚫 Доступ скасовано для користувача\n🆔:${userId}`)).message_id;
 
                 setTimeout(() => {
                     bot.deleteMessage(adminID, shortMessage2)
@@ -712,7 +722,7 @@ bot.on("callback_query", async msg => {
         thisUser.example = null;
         thisUser.exampleText = `\n`;
 
-        thisUser.startInputWords = (await bot.sendMessage(chatId, "Тепер додавай слова,\n спочатку відправ АНГ, а потім окремо УКР")).message_id;
+        thisUser.startInputWords = (await bot.sendMessage(chatId, "🔤 Тепер додавай слова!\nСпочатку надішли 🇬🇧 англійське слово,\nа потім окремо 🇺🇦 український переклад.")).message_id;
         thisUser.messagesToDelete.push(thisUser.startInputWords);
         thisUser.context.ENGwords = true;
 
@@ -1001,7 +1011,7 @@ bot.on("callback_query", async msg => {
 
         await runQuiz()
 
-        let finishText = (await bot.sendMessage(chatId, "Вітаю! Ви пройшли всі слова.", buttons.finishButton)).message_id;
+        let finishText = (await bot.sendMessage(chatId, "🎉 Вітаю! Ви пройшли всі слова 🙌\nЧас переходити до наступного уроку 📘", buttons.finishButton)).message_id;
         thisUser.messagesToDelete.push(finishText);
         thisUser.rightAnswerId.push(finishText);
 
@@ -1042,7 +1052,7 @@ bot.on("callback_query", async msg => {
         if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
         thisUser.audioId = null;
         await bot.deleteMessage(chatId, thisUser.messageIdReply)
-        thisUser.audioMessageId = (await bot.sendMessage(chatId, "Просто запиши і відправ голосове")).message_id;
+        thisUser.audioMessageId = (await bot.sendMessage(chatId, "🎙️ Просто запиши і відправ голосове 🎧")).message_id;
         thisUser.messagesToDelete.push(thisUser.audioMessageId);
 
     }
@@ -1050,7 +1060,7 @@ bot.on("callback_query", async msg => {
     if (msg.data === "addExamples") {
         thisUser.context.examplesExpect = true;
         await bot.deleteMessage(chatId, thisUser.messageIdReply)
-        thisUser.exampleMessageId = (await bot.sendMessage(chatId, "Просто додай нотатки")).message_id;
+        thisUser.exampleMessageId = (await bot.sendMessage(chatId, "📝 Просто додай нотатки ✍️")).message_id;
         thisUser.messagesToDelete.push(thisUser.exampleMessageId);
     }
 
@@ -1219,7 +1229,7 @@ bot.on("callback_query", async msg => {
 
 
 async function greeting(chatId) {
-    await bot.sendMessage(chatId, "Привіт.\nТут ти можеш створювати уроки та зберігати а потім повторювати англійські слова і вирази\n\nНижче коротка відеоінструкція як користуватись ботом");
+    await bot.sendMessage(chatId, "👋 Привіт.\nТут ти можеш створювати уроки та зберігати,\nа потім повторювати англійські слова і вирази 📚\n\n🎥 Нижче коротка відеоінструкція, як користуватись ботом ▶️");
 
     const videoPath = path.resolve(__dirname, "instruction.mp4"); // Отримуємо абсолютний шлях
 
@@ -1233,7 +1243,7 @@ async function greeting(chatId) {
     //     console.error("Помилка при відправці відео:", error);
     // }
 
-    await bot.sendMessage(chatId, "----------------\nЩоб створити перший урок зі словами обери 'Створити урок' в меню бота і слійдуй інструкціям\n----------------")
+    await bot.sendMessage(chatId, "📘 Щоб створити перший урок зі словами, обери 'Створити урок' в меню бота і слідкуй інструкціям ✍️")
     return
 }
 
