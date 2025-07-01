@@ -29,8 +29,8 @@ const buttons = {
     actionNextWord: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
-                [{ text: "⏭ Наступне", callback_data: "nextWord" }, { text: "☑️ Ні, зберегти урок", callback_data: "saveLesson" }],
-                [{ text: "✒️ Редагувати", callback_data: "edit" }],
+                [{ text: "⏭ Наступне", callback_data: "nextWord" }, { text: "✒️ Редагувати", callback_data: "edit" }],
+                [{ text: "✅ Ні, зберегти урок", callback_data: "saveLesson" }],
                 [{ text: "🔊 Додати/замінити аудіо", callback_data: "addAudio" }],
                 [{ text: "🔠 Додати приклади/підказки", callback_data: "addExamples" }],
             ]
@@ -129,10 +129,11 @@ loadUsersFromDB();
 console.log(Date.now())
 
 bot.setMyCommands([
-    { command: "/create", description: 'Створити урок' },
-    { command: "/show", description: 'Показати всі уроки' },
-    { command: "/stop", description: 'Зупинити' },
-    { command: "/start", description: 'Запустити' }
+    { command: "/create", description: '📝 Створити урок' },
+    { command: "/show", description: '📚 Показати всі уроки' },
+    { command: "/random", description: '🎲 Рандомне слово з ТОП 3k' },
+    { command: "/stop", description: '🔄 Перезавантажити' },
+    { command: "/start", description: '🚀 Запустити' }
 ]);
 
 bot.sendMessage(chatId, "<b>Public bot started</b>\n------------------\n", { parse_mode: "HTML" });
@@ -370,6 +371,10 @@ bot.on("message", async msg => {
             return
         }
 
+        if (text === "/random") {
+            await runRandomWord(thisUser, chatId, messageIdMain)
+        }
+
         if (thisUser.context.UKRwords) {
             thisUser.wordUkr = text;
             thisUser.context.UKRwords = false;
@@ -406,7 +411,7 @@ bot.on("message", async msg => {
 
             bot.deleteMessage(chatId, thisUser.lessonNameId)
             bot.deleteMessage(chatId, thisUser.lessonNameMessage)
-            thisUser.startInputWords = (await bot.sendMessage(chatId, "🔤 Тепер додавай слова!\nСпочатку надішли 🇬🇧 англійське слово,\nа потім окремо 🇺🇦 український переклад.")).message_id;
+            thisUser.startInputWords = (await bot.sendMessage(chatId, "🔤 Тепер додавай слова! Спочатку надішли\n🇬🇧 <b>Англійське слово</b>,\nа потім окремо надішли\n🇺🇦 <b>Український переклад</b>.", { parse_mode: "HTML" })).message_id;
             thisUser.messagesToDelete.push(thisUser.startInputWords);
             thisUser.context.ENGwords = true;
             thisUser.messagesToDelete.push(messageIdMain);
@@ -416,7 +421,7 @@ bot.on("message", async msg => {
 
         if (text === "/create") {
             bot.deleteMessage(chatId, thisUser.messageId)
-            thisUser.lessonNameMessage = (await bot.sendMessage(chatId, "📚 Введи назву уроку:\nНаприклад: 🇬🇧 Lesson 1 або 🧠 Нові слова")).message_id;
+            thisUser.lessonNameMessage = (await bot.sendMessage(chatId, "📚 Введи назву уроку, наприклад:\n🇬🇧 `<b>Lesson 1</b>`\nабо\n`<b>Нові слова</b>`", { parse_mode: "HTML" })).message_id;
             thisUser.messagesToDelete.push(thisUser.lessonNameMessage, messageIdMain);
             thisUser.context.lessonName = true;
 
@@ -604,6 +609,56 @@ bot.on("callback_query", async msg => {
 
     thisUser.lastActionTime = Date.now();
     dbUsers.run(`UPDATE users SET last_interaction = ${thisUser.lastActionTime} WHERE id = ?`, [callbackUser]);
+
+    const falseAnswers = ["falseRandom_0", "falseRandom_1", "falseRandom_2", "falseRandom_3"];
+    const trueAnswers = ["trueRandom_0", "trueRandom_1", "trueRandom_2", "trueRandom_3"]
+
+    if (falseAnswers.includes(msg.data)) {
+        let buttonNumber = parseInt(msg.data.slice(-1));
+        let keyboard = null;
+
+        if (thisUser.keyboard) {
+            keyboard = thisUser.keyboard;
+            keyboard.inline_keyboard[buttonNumber][0].text = `${keyboard.inline_keyboard[buttonNumber][0].text} ❌`;
+        }
+
+        try {
+            await bot.editMessageText(`${thisUser.randomText}`, {
+                chat_id: chatId,
+                message_id: thisUser.randomQuestionId,
+                reply_markup: keyboard ? JSON.stringify(keyboard) : null,
+                parse_mode: 'HTML'
+            })
+        } catch (e) {
+            console.log("edited msg looks the same or other error")
+        }
+    }
+
+    if (trueAnswers.includes(msg.data)) {
+        await bot.editMessageText(`${thisUser.randomText}\n🇺🇸\n-${thisUser.randomTextRight}`, {
+            chat_id: chatId,
+            message_id: thisUser.randomQuestionId,
+            reply_markup: JSON.stringify({
+                inline_keyboard: [
+                    [{ text: `Наступне`, callback_data: `nextRandom` }],
+                    [{ text: `Завершити`, callback_data: `finishRandom` }],
+                ]
+            }),
+            parse_mode: 'HTML'
+        })
+    }
+
+    if (msg.data === "finishRandom") {
+        bot.deleteMessage(chatId, thisUser.randomQuestionId)
+        thisUser.randomQuestionId = null;
+    }
+
+    if (msg.data === "nextRandom") {
+        bot.deleteMessage(chatId, thisUser.randomQuestionId)
+        thisUser.randomQuestionId = null;
+
+        await runRandomWord(thisUser, chatId)
+    }
 
     if (msg.data === "deleteUser") {
         let shortMessage = (await bot.sendMessage(adminID, "ІД юзера якому скасувати доступ")).message_id;
@@ -1236,21 +1291,10 @@ bot.on("callback_query", async msg => {
 
 
 async function greeting(chatId) {
-    await bot.sendMessage(chatId, "👋 Привіт.\nТут ти можеш створювати уроки та зберігати,\nа потім повторювати англійські слова і вирази 📚\n\n🎥 Нижче коротка відеоінструкція, як користуватись ботом ▶️");
+    const videoLink = "https://www.youtube.com"
+    await bot.sendMessage(chatId, `👋 Привіт.\nТут ти можеш створювати уроки та зберігати,\nа потім повторювати англійські слова і вирази 📚\n\n🎥 Нижче коротка відеоінструкція, як користуватись ботом ▶️ \n${videoLink}`);
 
-    const videoPath = path.resolve(__dirname, "instruction.mp4"); // Отримуємо абсолютний шлях
-
-    // try {
-    //     await bot.sendVideo(chatId, fs.createReadStream(videoPath), {
-    //         width: 1280, // Ширина (16:9)
-    //         height: 720, // Висота (16:9)
-    //         supports_streaming: true, // Відео не програватиметься автоматично
-    //     });
-    // } catch (error) {
-    //     console.error("Помилка при відправці відео:", error);
-    // }
-
-    await bot.sendMessage(chatId, "📘 Щоб створити перший урок зі словами, обери 'Створити урок' в меню бота і слідкуй інструкціям ✍️")
+    await bot.sendMessage(chatId, "📘 Щоб створити перший урок зі словами, обери 'Створити урок' в меню бота і слідуй інструкціям ✍️")
     return
 }
 
@@ -1430,6 +1474,53 @@ async function checkSubscription(userId) {
     }
 }
 
+async function runRandomWord(thisUser, chatId, messageIdMain) {
+
+    let randomQuiz = getRandomWord()
+
+    if (messageIdMain) {
+        bot.deleteMessage(chatId, messageIdMain)
+    }
+
+    let various = [{
+        word: randomQuiz.word,
+        callBack: "trueRandom"
+    },
+    {
+        word: randomQuiz.otherWords[0],
+        callBack: "falseRandom"
+    },
+    {
+        word: randomQuiz.otherWords[1],
+        callBack: "falseRandom"
+    },
+    {
+        word: randomQuiz.otherWords[2],
+        callBack: "falseRandom"
+    }];
+
+    various = various.sort(() => Math.random() - 0.5);
+
+    let prompt = {
+        inline_keyboard: [
+            [{ text: `${various[0].word}`, callback_data: `${various[0].callBack}_0` }],
+            [{ text: `${various[1].word}`, callback_data: `${various[1].callBack}_1` }],
+            [{ text: `${various[2].word}`, callback_data: `${various[2].callBack}_2` }],
+            [{ text: `${various[3].word}`, callback_data: `${various[3].callBack}_3` }],
+        ]
+    };
+
+    thisUser.keyboard = prompt;
+    thisUser.randomText = `🇺🇦\n-<b>${randomQuiz.translation}</b>`;
+    thisUser.randomTextRight = randomQuiz.word;
+    thisUser.randomQuestionId = (await bot.sendMessage(chatId, thisUser.randomText, {
+        reply_markup: prompt,
+        parse_mode: "HTML"
+    })).message_id;
+
+    return
+}
+
 function lastActionTimer() {
     setInterval(function () {
         let currentTime = Date.now();
@@ -1500,6 +1591,37 @@ function checkInactivityAndNotify() {
             }
         });
     });
+}
+
+function getRandomWord() {
+    const filePath = path.join(__dirname, 'basicWords.txt');
+    const data = fs.readFileSync(filePath, 'utf-8');
+
+    let quiz = {}
+
+    // Розбиваємо по рядках
+    const lines = data.split('\n').filter(Boolean); // прибираємо порожні
+
+    // Випадковий рядок
+    const randomLine = lines[Math.floor(Math.random() * lines.length)];
+
+    // Розділити слово і переклад
+    const [word, translation] = randomLine.split(' — ').map(s => s.trim());
+
+    quiz = {
+        word: word,
+        translation: translation,
+        otherWords: function () {
+            let arr = [];
+            for (let i = 0; i < 3; i++) {
+                const randomLine = lines[Math.floor(Math.random() * lines.length)];
+                arr.push(randomLine.split(' — ')[0])
+            }
+            return arr
+        }()
+    }
+
+    return quiz;
 }
 
 lastActionTimer()
