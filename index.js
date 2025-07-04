@@ -372,6 +372,11 @@ bot.on("message", async msg => {
         }
 
         if (text === "/random") {
+
+            thisUser.currentAnswers = {
+                right: 0,
+                wrong: 0
+            };
             await runRandomWord(thisUser, chatId, messageIdMain)
         }
 
@@ -611,11 +616,12 @@ bot.on("callback_query", async msg => {
     dbUsers.run(`UPDATE users SET last_interaction = ${thisUser.lastActionTime} WHERE id = ?`, [callbackUser]);
 
     const falseAnswers = ["falseRandom_0", "falseRandom_1", "falseRandom_2", "falseRandom_3"];
-    const trueAnswers = ["trueRandom_0", "trueRandom_1", "trueRandom_2", "trueRandom_3"]
+    const trueAnswers = ["trueRandom_0", "trueRandom_1", "trueRandom_2", "trueRandom_3"];
 
     if (falseAnswers.includes(msg.data)) {
         let buttonNumber = parseInt(msg.data.slice(-1));
         let keyboard = null;
+        thisUser.currentAnswers.wrong++
 
         if (thisUser.keyboard) {
             keyboard = thisUser.keyboard;
@@ -623,7 +629,7 @@ bot.on("callback_query", async msg => {
         }
 
         try {
-            await bot.editMessageText(`${thisUser.randomText}`, {
+            await bot.editMessageText(`✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}\n\n🇺🇦\n-<b>${thisUser.randomQuiz.translation}</b>`, {
                 chat_id: chatId,
                 message_id: thisUser.randomQuestionId,
                 reply_markup: keyboard ? JSON.stringify(keyboard) : null,
@@ -635,13 +641,14 @@ bot.on("callback_query", async msg => {
     }
 
     if (trueAnswers.includes(msg.data)) {
-        await bot.editMessageText(`${thisUser.randomText}\n🇺🇸\n-${thisUser.randomTextRight}`, {
+        thisUser.currentAnswers.right++
+        await bot.editMessageText(`✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}\n\n🇺🇦\n-<b>${thisUser.randomQuiz.translation}</b>\n🇺🇸\n-${thisUser.randomTextRight}`, {
             chat_id: chatId,
             message_id: thisUser.randomQuestionId,
             reply_markup: JSON.stringify({
                 inline_keyboard: [
-                    [{ text: `Наступне`, callback_data: `nextRandom` }],
-                    [{ text: `Завершити`, callback_data: `finishRandom` }],
+                    [{ text: `➡️ Наступне`, callback_data: `nextRandom` }],
+                    [{ text: `☑️ Завершити`, callback_data: `finishRandom` }],
                 ]
             }),
             parse_mode: 'HTML'
@@ -651,6 +658,10 @@ bot.on("callback_query", async msg => {
     if (msg.data === "finishRandom") {
         bot.deleteMessage(chatId, thisUser.randomQuestionId)
         thisUser.randomQuestionId = null;
+        thisUser.currentAnswers = {
+            right: 0,
+            wrong: 0
+        };
     }
 
     if (msg.data === "nextRandom") {
@@ -1511,7 +1522,8 @@ async function runRandomWord(thisUser, chatId, messageIdMain) {
     };
 
     thisUser.keyboard = prompt;
-    thisUser.randomText = `🇺🇦\n-<b>${randomQuiz.translation}</b>`;
+    thisUser.randomQuiz = randomQuiz;
+    thisUser.randomText = `✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}\n\n🇺🇦\n-<b>${randomQuiz.translation}</b>`;
     thisUser.randomTextRight = randomQuiz.word;
     thisUser.randomQuestionId = (await bot.sendMessage(chatId, thisUser.randomText, {
         reply_markup: prompt,

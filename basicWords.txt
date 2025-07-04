@@ -1215,8 +1215,8 @@ apply — застосоа
 appoint — вказувати
 appointment — побачення
 appropriate — привласнювати
-approve — схвалиа
-approval — схваа
+approve — схвалив
+approval — схвалення
 arrival — прибуття
 arise — виникнути
 arrange — організувати
@@ -1352,7 +1352,7 @@ crop — врожай
 cream — вершки
 create — створювати
 authority — влада
-alternative — альтернатиа
+alternative — альтернатива
 cell — клітина
 cigarette — цигарка
 chain — ланцюг
