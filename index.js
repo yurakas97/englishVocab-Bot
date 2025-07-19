@@ -131,7 +131,7 @@ console.log(Date.now())
 bot.setMyCommands([
     { command: "/create", description: '📝 Створити урок' },
     { command: "/show", description: '📚 Показати всі уроки' },
-    { command: "/random", description: '🎲 Рандомне слово з ТОП 3k' },
+    { command: "/random", description: '🎲 Пройти швидкий квіз' },
     { command: "/stop", description: '🔄 Перезавантажити' },
     { command: "/start", description: '🚀 Запустити' }
 ]);
@@ -656,7 +656,13 @@ bot.on("callback_query", async msg => {
     }
 
     if (msg.data === "finishRandom") {
-        bot.deleteMessage(chatId, thisUser.randomQuestionId)
+        //bot.deleteMessage(chatId, thisUser.randomQuestionId)
+        await bot.editMessageText(`Результат: ✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}`, {
+            chat_id: chatId,
+            message_id: thisUser.randomQuestionId,
+            parse_mode: 'HTML'
+        })
+
         thisUser.randomQuestionId = null;
         thisUser.currentAnswers = {
             right: 0,
@@ -1303,9 +1309,9 @@ bot.on("callback_query", async msg => {
 
 async function greeting(chatId) {
     const videoLink = "https://www.youtube.com"
-    await bot.sendMessage(chatId, `👋 Привіт.\nТут ти можеш створювати уроки та зберігати,\nа потім повторювати англійські слова і вирази 📚\n\n🎥 Нижче коротка відеоінструкція, як користуватись ботом ▶️ \n${videoLink}`);
+    await bot.sendMessage(chatId, `👋 Привіт.\nТут ти можеш записувати слова та вирази і зберігати їх в уроки,\nа потім повторювати в будь який час📚\n\n🎥 Нижче коротка відеоінструкція, як користуватись ботом ▶️ \n${videoLink}`);
 
-    await bot.sendMessage(chatId, "📘 Щоб створити перший урок зі словами, обери 'Створити урок' в меню бота і слідуй інструкціям ✍️")
+    await bot.sendMessage(chatId, "📘 Щоб створити перший урок зі словами, обери '<b>Створити урок</b>' в меню бота і слідуй інструкціям ✍️\n або пройди квіз з рандомними словами в '<b>Пройти швидкий квіз</b>'", { parse_mode: "HTML" })
     return
 }
 

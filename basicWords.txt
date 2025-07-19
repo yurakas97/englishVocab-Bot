@@ -1206,7 +1206,7 @@ according — гармонічний
 accuse — звинувачувати
 alive — актиа
 analysis — анаа
-announce — повідомляа
+announce — повідомляти
 apart — крім
 apartment — апартаа
 appeal — заклик
@@ -1214,7 +1214,7 @@ appearance — поява
 apply — застосоа
 appoint — вказувати
 appointment — побачення
-appropriate — привласнювати
+appropriate — доречний
 approve — схвалив
 approval — схвалення
 arrival — прибуття
@@ -1234,7 +1234,7 @@ attractive — привабливий
 achieve — досягти
 available — доступний
 avoid — уникати
-admit — визнаваа
+admit — визнавати
 advice — порада
 advise — радити
 advance — просуватись
@@ -2265,7 +2265,7 @@ homework — домашня робота
 honey — мед
 honourable — почесний
 hook — гак
-horseback — спина
+back — спина
 household — домогосподарство
 housewife — домогосподарка
 hunger — голод
@@ -2868,7 +2868,7 @@ think over — обдумати
 throw away — викидати  
 try on — приміряти  
 turn around — розвертатися
-turned out - виявилось  
+turned out — виявилось  
 wake up to — усвідомити  
 watch over — приглядати  
 wear out — зношуватися  
