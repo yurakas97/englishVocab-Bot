@@ -20,6 +20,7 @@ let adminActionsMsg = [];
 let adminMessages = [];
 let usersToBeNotified = [];
 let textToSend = "";
+const lastPress = {};
 
 const DAY_MS = 1000 * 60 * 60 * 24;
 const REMIND_DAYS = [1, 3, 7, 14];
@@ -59,8 +60,8 @@ const buttons = {
     showingReply: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
-                [{ text: "OK", callback_data: "ok" }, { text: "Видалити Урок", callback_data: "delete" }],
-                [{ text: "Повторити Урок", callback_data: "repeat" }],
+                [{ text: "✅ OK", callback_data: "ok" }, { text: "🗑 Видалити Урок", callback_data: "delete" }],
+                [{ text: "💡 Повторити Урок 💡", callback_data: "repeat" }],
             ]
         }),
         parse_mode: 'HTML'
@@ -139,12 +140,13 @@ bot.setMyCommands([
 bot.sendMessage(chatId, "<b>Public bot started</b>\n------------------\n", { parse_mode: "HTML" });
 
 bot.on("message", async msg => {
-    //console.log(msg)
+    console.log(msg)
     let messageIdMain = msg.message_id;
     let user = msg.from.id;
     let text = msg.text;
     const { id, username, first_name, last_name } = msg.from;
     let thisUser = users[user];
+    const key = msg.data;
 
     //let isSubscribed;
     let hasAccess;
@@ -258,10 +260,15 @@ bot.on("message", async msg => {
 
     if (thisUser.exist) {
         //console.log(thisUser)
+        let chatId = user;
+
+        if (!isAllowed(user, key)) {
+            bot.deleteMessage(chatId, msg.message_id);
+            return
+        }
 
         let currentUserId = thisUser.id;
         console.log(`user entered: ${currentUserId}`);
-        let chatId = user;
         thisUser.messageId = msg.message_id;
 
         thisUser.lastActionTime = Date.now();
@@ -443,6 +450,10 @@ bot.on("message", async msg => {
 
         if (thisUser.context.repead) {
             let lessonsToRepeat = text;
+
+            let lessonsList = (await getLessons(thisUser.id)).split("\n");
+            thisUser.chosenLessonName = lessonsList[lessonsToRepeat];
+
             thisUser.context.repead = false;
             bot.deleteMessage(chatId, thisUser.messageRepeadId)
             bot.deleteMessage(chatId, thisUser.messageIdReply)
@@ -556,6 +567,11 @@ bot.on("callback_query", async msg => {
     let userName = msg.from.username;
     const action = msg.data;
     let thisUser = users[callbackUser];
+    const key = msg.data;
+
+    if (!isAllowed(callbackUser, key)) {
+        return
+    }
 
     if (!users[callbackUser]) {
 
@@ -657,7 +673,7 @@ bot.on("callback_query", async msg => {
 
     if (msg.data === "finishRandom") {
         //bot.deleteMessage(chatId, thisUser.randomQuestionId)
-        await bot.editMessageText(`Результат: ✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}`, {
+        await bot.editMessageText(`Результат квізу: ✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}`, {
             chat_id: chatId,
             message_id: thisUser.randomQuestionId,
             parse_mode: 'HTML'
@@ -732,7 +748,18 @@ bot.on("callback_query", async msg => {
     }
 
     if (msg.data === "delete") {
-        thisUser.deleteMessageId = (await bot.sendMessage(chatId, "Який урок видалити? (Введи номер уроку)")).message_id;
+
+        let cancelaitonButton = {
+            reply_markup: JSON.stringify({
+                inline_keyboard: [
+                    [{ text: "Скасувати", callback_data: "ok2" }],
+                ]
+            }),
+            parse_mode: 'HTML'
+        }
+
+        thisUser.deleteMessageId = (await bot.sendMessage(chatId, "Який урок видалити? (Введи номер уроку)", cancelaitonButton)).message_id;
+        thisUser.messageIdReplyCancel = thisUser.deleteMessageId;
         thisUser.messagesToDelete.push(thisUser.deleteMessageId);
         thisUser.context.delete = true;
         return
@@ -829,8 +856,26 @@ bot.on("callback_query", async msg => {
         return
     }
 
+    if (msg.data === "ok2") {
+        bot.deleteMessage(chatId, thisUser.messageIdReplyCancel);
+        thisUser.context.delete = false;
+        thisUser.context.repead = false;
+        return
+    }
+
     if (msg.data === "repeat") {
-        thisUser.messageRepeadId = (await bot.sendMessage(chatId, "Який урок повторити? (Введи номер уроку)")).message_id;
+
+        let cancelaitonButton = {
+            reply_markup: JSON.stringify({
+                inline_keyboard: [
+                    [{ text: "Скасувати", callback_data: "ok2" }],
+                ]
+            }),
+            parse_mode: 'HTML'
+        }
+
+        thisUser.messageRepeadId = (await bot.sendMessage(chatId, "Який урок повторити? (Введи номер уроку)", cancelaitonButton)).message_id;
+        thisUser.messageIdReplyCancel = thisUser.messageRepeadId;
         thisUser.messagesToDelete.push(thisUser.messageRepeadId);
         thisUser.context.repead = true;
         return
@@ -1122,6 +1167,7 @@ bot.on("callback_query", async msg => {
                 console.log("*")
             }
         })
+        bot.sendMessage(chatId, `🎉 Укрок <b>${thisUser.chosenLessonName}</b> пройдено успішно!`, { parse_mode: "HTML" })
 
         return
     }
@@ -1640,6 +1686,18 @@ function getRandomWord() {
     }
 
     return quiz;
+}
+
+function isAllowed(userId, key, timeout = 1500) {
+    const now = Date.now();
+    const uniqueKey = `${userId}:${key}`;
+
+    if (lastPress[uniqueKey] && now - lastPress[uniqueKey] < timeout) {
+        return false; // занадто швидко натиснув
+    }
+
+    lastPress[uniqueKey] = now;
+    return true;
 }
 
 lastActionTimer()
