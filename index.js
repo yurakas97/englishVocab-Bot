@@ -533,13 +533,19 @@ bot.on("message", async msg => {
         }
 
         if (thisUser.context.audioExpext) {
-            thisUser.context.audioExpext = false;
-            thisUser.audioId = msg.message_id;
-            thisUser.voiceFileId = msg.voice.file_id;
-            await bot.deleteMessage(chatId, thisUser.audioMessageId)
-            thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
-
+            try {
+                thisUser.context.audioExpext = false;
+                thisUser.audioId = msg.message_id;
+                thisUser.voiceFileId = msg.voice.file_id;
+                await bot.deleteMessage(chatId, thisUser.audioMessageId)
+                thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+                thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+            } catch (e) {
+                thisUser.messagesToDelete.push(messageIdMain);
+                thisUser.context.audioExpext = true;
+                thisUser.messageIdReply = (await bot.sendMessage(chatId, `Спробуй ще раз, просто запиши голосове`)).message_id;
+                thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+            }
             return
         }
 
