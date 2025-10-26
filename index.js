@@ -5,12 +5,20 @@ const fs = require('fs');
 const https = require('https');
 const sqlite3 = require('sqlite3').verbose();
 const cron = require('node-cron');
+const OpenAI = require('openai');
+const { File } = require('node:buffer');
+
+globalThis.File = File;
 
 const token = process.env.TELEGRAM_TOKEN;
 const bot = new TelegramApi(token, { polling: true });
 const adminID = process.env.ADMIN_ID;
 let chatId = adminID;
 //let channelId = ""; chanel to be subscribed
+const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API,
+    project: process.env.OPENAI_PROJECT // ← встав свій project_id
+});
 
 let users = {};
 let dbConnections = {};
@@ -178,7 +186,7 @@ bot.on("message", async msg => {
     }
 
 
-    // CLOSED BOT
+    // PRIVATE BOT
     // if (!hasAccess) {
     //     botUsers[id] = { username, first_name, last_name, access: false };
     //     dbUsers.run('INSERT OR IGNORE INTO users (id, username, first_name, last_name, access) VALUES (?, ?, ?, ?, ?)',
@@ -1213,9 +1221,34 @@ bot.on("callback_query", async msg => {
     if (msg.data === "cancelAudio") {
         thisUser.context.audioExpext = false;
         //if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
-        //thisUser.audioId = null;
+        thisUser.audioId = null;
         bot.deleteMessage(chatId, thisUser.audioMessageId)
         thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+        thisUser.messagesToDelete.push(thisUser.messageIdReply);
+    }
+
+    if (msg.data === "addAudioByAi") {
+        thisUser.context.audioExpext = false;
+        await bot.deleteMessage(chatId, thisUser.audioMessageId)
+
+        let response = await voiceByAi(thisUser.wordEng)
+
+        // Зберігаємо аудіо у тимчасовий файл
+        const buffer = Buffer.from(await response.arrayBuffer());
+        const filePath = `voice_${thisUser}.mp3`;
+        fs.writeFileSync(filePath, buffer);
+
+        // Відправляємо користувачу голосове повідомлення
+        const sentMessage = await bot.sendVoice(chatId, fs.createReadStream(filePath));
+
+        // Тепер зберігаємо file_id у користувача — як при отриманні voice
+        thisUser.voiceFileId = sentMessage.voice.file_id;
+        fs.unlinkSync(filePath);
+
+        thisUser.audioId = sentMessage.message_id;
+
+        thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
+        thisUser.messagesToDelete.push(thisUser.messageIdReply);
     }
 
     if (msg.data === "addExamples") {
@@ -1388,6 +1421,23 @@ bot.on("callback_query", async msg => {
 
 });
 
+async function voiceByAi(text) {
+    if (!text) return; // ігноруємо не-текстові повідомлення
+
+    try {
+        // Генеруємо голос з тексту
+        const response = await openai.audio.speech.create({
+            model: "gpt-4o-mini-tts", // або gpt-4o-tts
+            voice: "alloy",            // можна змінити на інший доступний голос
+            input: text,
+            format: "mp3"
+        });
+
+        return response
+    } catch (err) {
+        console.error("Помилка при генерації озвучки", err);
+    }
+}
 
 async function greeting(chatId) {
     const videoLink = "https://www.youtube.com"
