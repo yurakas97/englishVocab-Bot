@@ -553,6 +553,7 @@ bot.on("message", async msg => {
 
         if (thisUser.context.audioExpext) {
             try {
+                if (thisUser.audioId) await bot.deleteMessage(chatId, thisUser.audioId);
                 thisUser.context.audioExpext = false;
                 thisUser.audioId = msg.message_id;
                 thisUser.voiceFileId = msg.voice.file_id;
@@ -1201,8 +1202,8 @@ bot.on("callback_query", async msg => {
 
     if (msg.data === "addAudio") {
         thisUser.context.audioExpext = true;
-        if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
-        thisUser.audioId = null;
+        //if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
+        //thisUser.audioId = null;
         await bot.deleteMessage(chatId, thisUser.messageIdReply)
         thisUser.audioMessageId = (await bot.sendMessage(chatId, "🎙️ Просто запиши і відправ голосове 🎧, або дозволь AI озвучити", buttons.askAi)).message_id;
         thisUser.messagesToDelete.push(thisUser.audioMessageId);
@@ -1211,9 +1212,8 @@ bot.on("callback_query", async msg => {
 
     if (msg.data === "cancelAudio") {
         thisUser.context.audioExpext = false;
-        if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
-        thisUser.audioId = null;
-        //await bot.deleteMessage(chatId, thisUser.messageIdReply)
+        //if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
+        //thisUser.audioId = null;
         bot.deleteMessage(chatId, thisUser.audioMessageId)
         thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
     }
