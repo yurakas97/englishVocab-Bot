@@ -514,8 +514,33 @@ bot.on("message", async msg => {
                     bot.once("callback_query", async (msg) => {
                         let data = msg.data;
                         //let messageId = msg.message_id;
+                        let choseeen = null;
 
                         if (data === "yesdelete") {
+
+                            let txtName = `${thisUser.lessonsArr[lessonsToDelete]}.txt`
+                            let audioNames = [];
+
+                            getLesson(thisUser.lessonsArr[lessonsToDelete], currentUserId, (words) => {
+
+                                choseeen = Object.entries(words);
+
+                                for (let item of choseeen) {
+                                    if (item[1].audio) {
+                                        audioNames.push(item[1].audio)
+                                    }
+                                }
+                            });
+
+                            await sleep(1000)
+                            let txtPath = `${__dirname}/users/${thisUser.id}/txt/${txtName}`;
+                            fs.unlinkSync(txtPath);
+
+                            for (let item of audioNames) {
+                                let audioPath = `${__dirname}/users/${thisUser.id}/voice/${item}.ogg`
+                                fs.unlinkSync(audioPath)
+                            }
+
                             deleteLessonByName(thisUser.lessonsArr[lessonsToDelete], currentUserId)
                         }
 
@@ -531,6 +556,8 @@ bot.on("message", async msg => {
 
             thisUser.messagesToDelete.push(messageIdMain);
             bot.deleteMessage(chatId, messageToDelete)
+
+            //console.log("_dirname", __dirname);
 
             return
         }
@@ -567,7 +594,7 @@ bot.on("message", async msg => {
                 thisUser.voiceFileId = msg.voice.file_id;
                 await bot.deleteMessage(chatId, thisUser.audioMessageId)
                 thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-                thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+                thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain, thisUser.audioId);
             } catch (e) {
                 console.log(e)
                 thisUser.messagesToDelete.push(messageIdMain);
@@ -1221,7 +1248,7 @@ bot.on("callback_query", async msg => {
     if (msg.data === "cancelAudio") {
         thisUser.context.audioExpext = false;
         //if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
-        thisUser.audioId = null;
+        //thisUser.audioId = null;
         bot.deleteMessage(chatId, thisUser.audioMessageId)
         thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
         thisUser.messagesToDelete.push(thisUser.messageIdReply);
@@ -1248,7 +1275,7 @@ bot.on("callback_query", async msg => {
         thisUser.audioId = sentMessage.message_id;
 
         thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
-        thisUser.messagesToDelete.push(thisUser.messageIdReply);
+        thisUser.messagesToDelete.push(thisUser.messageIdReply, thisUser.audioId);
     }
 
     if (msg.data === "addExamples") {
