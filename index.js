@@ -673,7 +673,7 @@ bot.on("callback_query", async msg => {
 
     if (msg.data === "finishRandom") {
         //bot.deleteMessage(chatId, thisUser.randomQuestionId)
-        await bot.editMessageText(`Результат квізу: ✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}`, {
+        await bot.editMessageText(`<b>Результат швидкого квізу:</b> ✅- ${thisUser.currentAnswers.right} ❌- ${thisUser.currentAnswers.wrong}`, {
             chat_id: chatId,
             message_id: thisUser.randomQuestionId,
             parse_mode: 'HTML'
@@ -837,6 +837,7 @@ bot.on("callback_query", async msg => {
 
     if (msg.data === "done") {
         await bot.deleteMessage(chatId, thisUser.messageIdReply);
+        await bot.sendMessage(chatId, "<b>Новий урок збережено</b>👇", { parse_mode: "HTML" })
         await bot.sendDocument(chatId, `./users/${callbackUser}/txt/${thisUser.lessonName}.txt`)
 
         thisUser.messagesToDelete.forEach(async (item) => {
