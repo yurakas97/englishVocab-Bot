@@ -27,6 +27,16 @@ const REMIND_DAYS = [1, 3, 7, 14];
 
 const buttons = {
 
+    askAi: {
+        reply_markup: JSON.stringify({
+            inline_keyboard: [
+                [{ text: "AI озвучка", callback_data: "addAudioByAi" }],
+                [{ text: "Скасувати", callback_data: "cancelAudio" }],
+            ]
+        }),
+        parse_mode: 'HTML'
+    },
+
     actionNextWord: {
         reply_markup: JSON.stringify({
             inline_keyboard: [
@@ -458,19 +468,24 @@ bot.on("message", async msg => {
             bot.deleteMessage(chatId, thisUser.messageRepeadId)
             bot.deleteMessage(chatId, thisUser.messageIdReply)
 
-            getLesson(thisUser.lessonsArr[lessonsToRepeat], currentUserId, (words) => {
-                console.log("Words in lesson:", words);
-                thisUser.chosenLesson = Object.entries(words);
-            });
-            console.log("chosen lesson: ", thisUser.chosenLesson)
+            if (thisUser.lessonsArr[lessonsToRepeat] != undefined) {
 
-            await bot.deleteMessage(chatId, msg.message_id)
-            thisUser.messageIdReply = (await bot.sendMessage(chatId, `Якою мовою показувати слова?`, buttons.chooseLenguage)).message_id;
+                getLesson(thisUser.lessonsArr[lessonsToRepeat], currentUserId, (words) => {
+                    console.log("Words in lesson:", words);
+                    thisUser.chosenLesson = Object.entries(words);
+                });
+                console.log("chosen lesson: ", thisUser.chosenLesson)
 
-            //mix
-            thisUser.mixedWords = shuffleArray(thisUser.chosenLesson);
-            console.log("mixed lesson", thisUser.mixedWords)
-            thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+                await bot.deleteMessage(chatId, msg.message_id)
+                thisUser.messageIdReply = (await bot.sendMessage(chatId, `Якою мовою показувати слова?`, buttons.chooseLenguage)).message_id;
+
+                //mix
+                thisUser.mixedWords = shuffleArray(thisUser.chosenLesson);
+                console.log("mixed lesson", thisUser.mixedWords)
+                thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
+            } else {
+                await bot.deleteMessage(chatId, msg.message_id)
+            }
 
             return
         }
@@ -483,25 +498,29 @@ bot.on("message", async msg => {
             await bot.deleteMessage(chatId, thisUser.deleteMessageId)
             await bot.deleteMessage(chatId, thisUser.messageIdReply)
 
-            let sure = (await bot.sendMessage(chatId, `Я видаляю: <b>${thisUser.lessonsArr[lessonsToDelete]}</b>\nВірно?`, buttons.deleteConfirm)).message_id
+            if (thisUser.lessonsArr[lessonsToDelete] != undefined) {
 
-            await new Promise((resolve) => {
-                bot.once("callback_query", async (msg) => {
-                    let data = msg.data;
-                    //let messageId = msg.message_id;
+                let sure = (await bot.sendMessage(chatId, `Я видаляю: <b>${thisUser.lessonsArr[lessonsToDelete]}</b>\nВірно?`, buttons.deleteConfirm)).message_id
 
-                    if (data === "yesdelete") {
-                        deleteLessonByName(thisUser.lessonsArr[lessonsToDelete], currentUserId)
-                    }
+                await new Promise((resolve) => {
+                    bot.once("callback_query", async (msg) => {
+                        let data = msg.data;
+                        //let messageId = msg.message_id;
 
-                    resolve()
+                        if (data === "yesdelete") {
+                            deleteLessonByName(thisUser.lessonsArr[lessonsToDelete], currentUserId)
+                        }
+
+                        resolve()
+                    })
                 })
-            })
 
-            thisUser.messagesToDelete.push(sure);
-            await bot.deleteMessage(chatId, sure)
+                thisUser.messagesToDelete.push(sure);
+                await bot.deleteMessage(chatId, sure)
 
-            console.log("chosen lesson to delete: ", lessonsToDelete)
+                console.log("chosen lesson to delete: ", lessonsToDelete)
+            }
+
             thisUser.messagesToDelete.push(messageIdMain);
             bot.deleteMessage(chatId, messageToDelete)
 
@@ -541,6 +560,7 @@ bot.on("message", async msg => {
                 thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
                 thisUser.messagesToDelete.push(thisUser.messageIdReply, messageIdMain);
             } catch (e) {
+                console.log(e)
                 thisUser.messagesToDelete.push(messageIdMain);
                 thisUser.context.audioExpext = true;
                 thisUser.messageIdReply = (await bot.sendMessage(chatId, `Спробуй ще раз, просто запиши голосове`)).message_id;
@@ -1184,9 +1204,18 @@ bot.on("callback_query", async msg => {
         if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
         thisUser.audioId = null;
         await bot.deleteMessage(chatId, thisUser.messageIdReply)
-        thisUser.audioMessageId = (await bot.sendMessage(chatId, "🎙️ Просто запиши і відправ голосове 🎧")).message_id;
+        thisUser.audioMessageId = (await bot.sendMessage(chatId, "🎙️ Просто запиши і відправ голосове 🎧, або дозволь AI озвучити", buttons.askAi)).message_id;
         thisUser.messagesToDelete.push(thisUser.audioMessageId);
 
+    }
+
+    if (msg.data === "cancelAudio") {
+        thisUser.context.audioExpext = false;
+        if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
+        thisUser.audioId = null;
+        //await bot.deleteMessage(chatId, thisUser.messageIdReply)
+        bot.deleteMessage(chatId, thisUser.audioMessageId)
+        thisUser.messageIdReply = (await bot.sendMessage(chatId, `<b>${thisUser.wordEng} - ${thisUser.wordUkr}</b>${thisUser.exampleText}\nНаступне слово?`, buttons.actionNextWord)).message_id;
     }
 
     if (msg.data === "addExamples") {
