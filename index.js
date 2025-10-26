@@ -791,7 +791,7 @@ bot.on("callback_query", async msg => {
 
         let lessonText = `<b>${thisUser.lessonName}:</b>`;
 
-        for (key in thisUser.lessonCore) {
+        for (let key in thisUser.lessonCore) {
             lessonText += `\n${key} - ${thisUser.lessonCore[key]["translate"]}`
         }
 
