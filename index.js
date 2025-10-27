@@ -1240,7 +1240,7 @@ bot.on("callback_query", async msg => {
         //if (thisUser.audioId) bot.deleteMessage(chatId, thisUser.audioId);
         //thisUser.audioId = null;
         await bot.deleteMessage(chatId, thisUser.messageIdReply)
-        thisUser.audioMessageId = (await bot.sendMessage(chatId, "🎙️ Просто запиши і відправ голосове 🎧, або дозволь AI озвучити", buttons.askAi)).message_id;
+        thisUser.audioMessageId = (await bot.sendMessage(chatId, "🎙️ Просто зараз запиши і відправ голосове 🎧, або дозволь AI озвучити", buttons.askAi)).message_id;
         thisUser.messagesToDelete.push(thisUser.audioMessageId);
 
     }
