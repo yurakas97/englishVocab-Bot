@@ -433,7 +433,15 @@ bot.on("message", async msg => {
 
         if (thisUser.context.lessonName) {
             thisUser.lessonNameId = msg.message_id;
-            thisUser.lessonName = text;
+
+            function sanitizeFilename(name) {
+                return name
+                    .replace(/\//g, '_')
+                    .replace(/\0/g, '')
+                    .trim();
+            }
+
+            thisUser.lessonName = sanitizeFilename(text);
             thisUser.context.lessonName = false;
             console.log(thisUser.lessonName)
 
